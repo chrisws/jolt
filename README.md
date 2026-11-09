@@ -1,4 +1,6 @@
-# Jolt
+ # Jolt
+
+[![Jolt](.hali/badge.svg)](.hali/badge.svg)
 
 A server-side Java code explorer with IntelliJ-like navigation, accessible from a browser. Built for large legacy codebases (100K–500K+ files), it provides fast search, go-to-definition, find-references, class hierarchy, call graphs, and built-in git review for agent-made changes — all shareable via URL.
 
