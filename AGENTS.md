@@ -42,3 +42,27 @@ public String getFqn() {
 - look in the docs folder for depenency details about jdt
 - ask the user to clone more repos if you require further specific details
 
+
+## Repository Structure
+
+```
+jolt/
+├── docker/Dockerfile
+├── server/
+│   ├── src/main/java/com/jolt/
+│   │   ├── JoltApp.java       # Entry point, Picocli CLI, starts Javalin
+│   │   ├── api/               # REST routes, WebSocket handlers
+│   │   ├── index/             # Lucene index management
+│   │   ├── parse/             # JDT, XML, JSP parsers
+│   │   ├── nav/               # Symbol table, hierarchy, call graph
+│   │   ├── j2ee/              # Spring/EJB/JSP wiring resolution
+│   │   ├── git/               # JGit service, agent tracking, diffs
+│   │   ├── model/             # Domain objects (ClassSymbol, MethodSymbol, etc.)
+│   │   └── watch/             # File watcher, .jolt/ directory management
+│   └── pom.xml                # maven-shade-plugin → target/jolt.jar
+├── web/                       # React + Vite frontend (embedded in JAR)
+├── tests/                     # Server and web test suites
+├── docs/                      # Architecture, API reference, deployment guide
+└── plans/java-code-explorer.md  # Full technical plan
+```
+

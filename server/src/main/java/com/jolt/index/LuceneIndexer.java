@@ -53,21 +53,24 @@ public class LuceneIndexer implements AutoCloseable {
   }
 
   /** Index a class symbol as a structured CLASS document. */  
-  public void indexClass(ClassSymbol cs) throws IOException {
-    Document doc = new Document();
-    String id = cs.fqn;
-    
-    doc.add(new StoredField("id", id));
-    doc.add(new StoredField("kind", cs.kind.name()));
-    doc.add(new StoredField("name", cs.name));
-    doc.add(new StoredField("qualifiedName", cs.fqn));
-    doc.add(new StoredField("filePath", cs.filePath));
-    doc.add(new IntPoint("lineStart", cs.lineStart));
-    doc.add(new StoredField("_lineStartStr", String.valueOf(cs.lineStart))); // for sorting/display
-    
+  public void indexClass(ClassSymbol cs) throws IOException {  
+    Document doc = new Document();  
+    String id = cs.fqn;  
+
+    doc.add(new StringField("id", id, Field.Store.YES));              // indexed keyword + stored → upsert & exact match  
+    doc.add(new StringField("kind", cs.kind.name(), Field.Store.YES)); // indexed keyword + stored → TermQuery filter  
+    doc.add(new TextField("name", cs.name, Field.Store.YES));          // analyzed + stored → text search  
+    doc.add(new TextField("qualifiedName", cs.fqn, Field.Store.YES));   // analyzed + stored → FQN search  
+    doc.add(new StringField("filePath", cs.filePath, Field.Store.YES)); // indexed keyword + stored  
+    doc.add(new IntPoint("lineStart", cs.lineStart));                  // numeric range queries  
+    doc.add(new StoredField("_lineStartStr", String.valueOf(cs.lineStart))); // display only  
+
     if (cs.superClass != null) {
       doc.add(new StoredField("superClass", cs.superClass));
     }
+
+    // Body field for full-text search — combine name and FQN so QueryParser can find it  
+    doc.add(new TextField("body", cs.fqn + " " + cs.name, Field.Store.NO));
 
     writer.updateDocument(new Term("id", id), doc);
 
@@ -84,31 +87,42 @@ public class LuceneIndexer implements AutoCloseable {
     }
   }
 
-  private void indexMethod(MethodSymbol ms, String filePath) throws IOException {
-    Document doc = new Document();
-    
-    doc.add(new StoredField("id", ms.fqn()));
-    doc.add(new StoredField("kind", SymbolKind.METHOD.name()));
-    doc.add(new StoredField("name", ms.name()));
-    doc.add(new StoredField("qualifiedName", ms.fqn()));
-    doc.add(new StoredField("signature", ms.signature()));
-    doc.add(new StoredField("filePath", filePath));
-    doc.add(new IntPoint("lineStart", ms.lineStart()));
-    
-    writer.updateDocument(new Term("id", ms.fqn()), doc);
+  private void indexMethod(MethodSymbol ms, String filePath) throws IOException {  
+    Document doc = new Document();  
+
+    doc.add(new StringField("id", ms.fqn(), Field.Store.YES));  
+    doc.add(new StringField("kind", SymbolKind.METHOD.name(), Field.Store.YES));  
+    doc.add(new TextField("name", ms.name(), Field.Store.YES));  
+    doc.add(new TextField("qualifiedName", ms.fqn(), Field.Store.YES));  
+    doc.add(new TextField("signature", ms.signature(), Field.Store.YES));  
+    doc.add(new StringField("filePath", filePath, Field.Store.YES));  
+    doc.add(new IntPoint("lineStart", ms.lineStart()));  
+
+    // Body for full-text search  
+    StringBuilder body = new StringBuilder(ms.fqn()).append(' ').append(ms.name());  
+    if (ms.signature() != null) body.append(' ').append(ms.signature());  
+    doc.add(new TextField("body", body.toString(), Field.Store.NO));  
+
+    writer.updateDocument(new Term("id", ms.fqn()), doc); 
   }
 
-  private void indexField(FieldSymbol fs, String classFqn, String filePath) throws IOException {
-    Document doc = new Document();
-    
-    doc.add(new StoredField("id", classFqn + "#" + fs.name() + "~field"));
-    doc.add(new StoredField("kind", SymbolKind.FIELD.name()));
-    doc.add(new StoredField("name", fs.name()));
-    doc.add(new StoredField("qualifiedName", classFqn));
-    doc.add(new StoredField("type", fs.type()));
-    doc.add(new StoredField("filePath", filePath));
-    
-    writer.updateDocument(new Term("id", classFqn + "#" + fs.name() + "~field"), doc);
+  private void indexField(FieldSymbol fs, String classFqn, String filePath) throws IOException {  
+    Document doc = new Document();  
+
+    String id = classFqn + "#" + fs.name() + "~field";  
+    doc.add(new StringField("id", id, Field.Store.YES));  
+    doc.add(new StringField("kind", SymbolKind.FIELD.name(), Field.Store.YES));  
+    doc.add(new TextField("name", fs.name(), Field.Store.YES));  
+    doc.add(new TextField("qualifiedName", classFqn, Field.Store.YES));  
+    doc.add(new TextField("type", fs.type(), Field.Store.YES));  
+    doc.add(new StringField("filePath", filePath, Field.Store.YES));  
+
+    // Body for full-text search  
+    StringBuilder body = new StringBuilder(classFqn).append(' ').append(fs.name());  
+    if (fs.type() != null) body.append(' ').append(fs.type());  
+    doc.add(new TextField("body", body.toString(), Field.Store.NO));  
+
+    writer.updateDocument(new Term("id", id), doc); 
   }
 
   /** Search across all indexed documents. */  
@@ -136,6 +150,7 @@ public class LuceneIndexer implements AutoCloseable {
       builder.add(new TermQuery(new Term("kind", kindFilter.name())), BooleanClause.Occur.FILTER);
     }
 
+    searcherMgr.maybeRefresh(); // ensure latest commits are visible  
     IndexSearcher searcher = searcherMgr.acquire();
     try {
       TopDocs topDocs = searcher.search(builder.build(), maxResults);

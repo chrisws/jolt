@@ -162,6 +162,51 @@ public class ApiRoutes {
       ctx.json(response);
     });
 
+    // ─── File Tree ──────────────────────────────────────────── 
+    app.get("/api/file/tree", ctx -> {
+      String path = ctx.queryParam("path");
+      Path dirPath = homeDir.resolve(path != null ? path : "").normalize();
+
+      if (!dirPath.startsWith(homeDir)) { ctx.status(403).result("Access denied"); return; }
+
+      if (!Files.exists(dirPath) || !Files.isDirectory(dirPath)) {
+        ctx.status(404).json(Map.of("error", "Directory not found")); return;
+      }
+
+      try (var stream = Files.list(dirPath)) {
+        var entries = stream.sorted((a, b) -> {
+          boolean aDir = Files.isDirectory(a);
+          boolean bDir = Files.isDirectory(b);
+          if (aDir && !bDir) return -1;  
+          if (!aDir && bDir) return 1;   
+          return a.getFileName().toString().compareToIgnoreCase(b.getFileName().toString());
+        }).map(p -> Map.<String, Object>of(
+            "name", p.getFileName().toString(),
+            "type", Files.isDirectory(p) ? "directory" : "file",
+            "path", homeDir.relativize(p).toString()
+        )).toList();
+
+        ctx.json(entries);
+      } catch (Exception e) {
+        log.error("File tree failed for {}: {}", path, e.getMessage());
+        ctx.status(500).json(Map.of("error", e.getMessage()));
+      }
+    });
+
+    // ─── Find References ────────────────────────────────────── 
+    app.get("/api/references", ctx -> {
+      String symbol = ctx.queryParam("symbol");  
+      if (symbol == null || symbol.isBlank()) { ctx.status(400).result("Missing 'symbol' parameter"); return; }
+
+      var refs = symbolTable.findReferences(symbol);
+
+      List<Map<String, Object>> refList = refs.stream()
+          .map(r -> Map.<String, Object>of("filePath", r.filePath(), "line", r.line()))
+          .toList();
+
+      ctx.json(refList);
+    });
+
     log.info("API routes registered");
   }
 

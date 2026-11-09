@@ -1,11 +1,14 @@
 package com.jolt;
 
 import com.jolt.api.ApiRoutes;
+import com.jolt.api.WsHub;
 import com.jolt.index.LuceneIndexer;
 import com.jolt.model.ClassSymbol;
 import com.jolt.nav.SymbolTable;
 import com.jolt.parse.FileWalker;
 import com.jolt.parse.JavaParser;
+import com.jolt.watch.FileChangeEvent;
+import com.jolt.watch.FileWatcher;
 import io.javalin.Javalin;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -81,16 +84,30 @@ public final class ServerBootstrap {
 
     Javalin app = Javalin.create();  
 
+    // WebSocket hub for live notifications  
+    WsHub wsHub = new WsHub();  
+    wsHub.register(app);  
+
     ApiRoutes routes = new ApiRoutes(symbolTable, indexer, homeDir);  
     routes.register(app);  
 
-    app.start(); 
+    // File watcher → broadcast changes via WebSocket  
+    FileWatcher fileWatcher = new FileWatcher(homeDir, 300L);  
+    fileWatcher.addListener((List<FileChangeEvent> events) -> {      
+      for (FileChangeEvent evt : events) {        
+        wsHub.broadcastFileChange(evt.path(), evt.eventType());      
+     }    
+   });   
+   fileWatcher.start();  
+
+    app.start(port); 
     log.info("Jolt server listening on http://{}:{}/api/status", host, port);
 
     // Register shutdown hook to close resources cleanly when JVM exits  
     Runtime.getRuntime().addShutdownHook(new Thread(() -> {
       try {
         app.stop();
+        fileWatcher.close();
         indexer.close();
         log.info("Clean shutdown complete");
       } catch (Exception e) {
