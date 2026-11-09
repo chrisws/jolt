@@ -3,6 +3,7 @@ package com.jolt.parse;
 import com.jolt.model.ClassSymbol;
 import com.jolt.model.FieldSymbol;
 import com.jolt.model.MethodSymbol;
+import com.jolt.model.SymbolKind;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -106,6 +107,48 @@ class JavaParserServiceTest {
     MethodSymbol ctor = findMethod(wcs, "<init>");  
     assertNotNull(ctor, "Constructor should be extracted as <init>");  
     assertEquals("public", ctor.access());  
+  }  
+
+  @Test  
+  void parsesInterface() throws Exception {  
+    String src = """  
+      package com.example;  
+
+      public interface Animal extends Serializable {  
+        int MAX_LEGS = 4;  
+        String species();  
+        void makeSound(String sound);  
+      }  
+      """;  
+    Path file = tempDir.resolve("Animal.java");  
+    Files.writeString(file, src);  
+
+    List<ClassSymbol> symbols = new JavaParserService(file).parseFile();  
+    assertFalse(symbols.isEmpty(), "Expected at least one top-level type");  
+    ClassSymbol iface = symbols.get(0);  
+
+    // Basic identity  
+    assertEquals("com.example.Animal", iface.fqn);  
+    assertEquals("Animal", iface.name);  
+    assertEquals(SymbolKind.INTERFACE, iface.kind);  
+
+    // Superinterface tracking (Serializable is unresolvable but should appear as text)  
+    assertTrue(iface.interfaces.contains("Serializable"), 
+               "Should track superinterfaces: " + iface.interfaces);  
+
+    // Constants (fields in interfaces)  
+    FieldSymbol maxLegs = iface.fields.get("MAX_LEGS");
+    assertNotNull(maxLegs, "Constant field MAX_LEGS not found");
+    assertEquals("int", maxLegs.type());
+
+    // Abstract methods  
+    MethodSymbol species = findMethod(iface, "species");
+    assertNotNull(species, "species() method not found");
+    assertEquals("String", species.returnType());
+
+    MethodSymbol makeSound = findMethod(iface, "makeSound");
+    assertNotNull(makeSound, "makeSound() method not found");
+    assertEquals("void", makeSound.returnType());
   }  
 
   /** Helper: find a method by simple name from the methods map (keys are "name(params)"). */  

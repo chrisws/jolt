@@ -9,6 +9,7 @@ import org.eclipse.jdt.core.dom.ASTNode;
 import org.eclipse.jdt.core.dom.ASTParser;
 import org.eclipse.jdt.core.dom.CompilationUnit;
 import org.eclipse.jdt.core.dom.EnumDeclaration;
+import org.eclipse.jdt.core.dom.AbstractTypeDeclaration;
 import org.eclipse.jdt.core.dom.FieldDeclaration;
 import org.eclipse.jdt.core.dom.MethodDeclaration;
 import org.eclipse.jdt.core.dom.RecordDeclaration;
@@ -63,20 +64,32 @@ public class JavaParser {
       Object nodeObj = topLevelTypes.get(i);
       
       if (nodeObj instanceof TypeDeclaration td) {
-        extractClass(td, pkg, source, filePath.toString(), results);
+        SymbolKind kind = detectTypeKind(td, source);  
+        if (kind == SymbolKind.INTERFACE) {
+          extractInterface(td, pkg, source, filePath.toString(), results);
+        } else {
+          extractClass(td, pkg, source, filePath.toString(), results);
+        }
       } else if (nodeObj instanceof EnumDeclaration ed) {
         extractEnum(ed, pkg, source, filePath.toString(), results);
       } else if (nodeObj instanceof RecordDeclaration rd) {
         extractRecord(rd, pkg, source, filePath.toString(), results);
       } else {
-        // Could be InterfaceDeclaration or other — detect by class name  
-        String className = nodeObj.getClass().getSimpleName();  
-        log.debug("Unhandled top-level type: {}", className);  
-        // Phase 2+: handle interfaces via reflection-based extraction  
+        log.debug("Unhandled top-level type: {}", nodeObj.getClass().getSimpleName());
       }  
     }  
 
     return results;  
+  }  
+
+  /** Detect interface vs class by scanning source text backward from type name for keyword. */  
+  private static SymbolKind detectTypeKind(TypeDeclaration td, String source) {  
+    int namePos = td.getName().getStartPosition();  
+    // Scan back up to ~50 chars for "interface" or "class" keyword  
+    int searchStart = Math.max(0, namePos - 50);  
+    String prefix = source.substring(searchStart, namePos);  
+    if (prefix.contains("interface")) return SymbolKind.INTERFACE;  
+    return SymbolKind.CLASS;  
   }  
 
   private void extractClass(TypeDeclaration td, String pkg, String source, String filePathStr, List<ClassSymbol> out) {  
@@ -93,6 +106,11 @@ public class JavaParser {
   private void extractRecord(RecordDeclaration rd, String pkg, String source, String filePathStr, List<ClassSymbol> out) {  
     doExtractType(rd.getName().getIdentifier(), rd.bodyDeclarations(), 
                   null, superInterfacesOf(rd), SymbolKind.RECORD, pkg, source, filePathStr, out);  
+  }  
+
+  private void extractInterface(TypeDeclaration td, String pkg, String source, String filePathStr, List<ClassSymbol> out) {  
+    doExtractType(td.getName().getIdentifier(), td.bodyDeclarations(), 
+                  null, superInterfacesOf(td), SymbolKind.INTERFACE, pkg, source, filePathStr, out);  
   }  
 
   @SuppressWarnings("unchecked")
@@ -137,11 +155,13 @@ public class JavaParser {
         } else if (memberObj instanceof FieldDeclaration fd) {  
           handleField(fd, cs, source);  
         } else if (memberObj instanceof TypeDeclaration nestedTd) { 
-        // Nested class — extract recursively with outer FQN as prefix context  
-        doExtractType(nestedTd.getName().getIdentifier(), nestedTd.bodyDeclarations(),
-                      nestedTd.getSuperclassType() != null ? nestedTd.getSuperclassType().toString() : null,
-                      superInterfacesOf(nestedTd), SymbolKind.CLASS,
-                      pkgForNested(fqn), source, filePathStr, out); 
+          // Detect interface vs class via source text  
+          SymbolKind nkind = detectTypeKind(nestedTd, source);  
+          String nsuper = (nkind == SymbolKind.CLASS && nestedTd.getSuperclassType() != null) 
+                          ? nestedTd.getSuperclassType().toString() : null;  
+          doExtractType(nestedTd.getName().getIdentifier(), nestedTd.bodyDeclarations(),
+                        nsuper, superInterfacesOf(nestedTd), nkind,
+                        pkgForNested(fqn), source, filePathStr, out); 
       } else if (memberObj instanceof EnumDeclaration ne) {  
         doExtractType(ne.getName().getIdentifier(), ne.bodyDeclarations(),
                       null, superInterfacesOf(ne), SymbolKind.ENUM,
@@ -150,7 +170,7 @@ public class JavaParser {
         doExtractType(nr.getName().getIdentifier(), nr.bodyDeclarations(),
                       null, superInterfacesOf(nr), SymbolKind.RECORD,
                       pkgForNested(fqn), source, filePathStr, out);
-        } 
+        }
       } catch (Exception e) {  
         log.debug("Error extracting member [{}]: {}", i, e.getMessage());  
       } 

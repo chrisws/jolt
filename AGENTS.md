@@ -39,6 +39,6 @@ public String getFqn() {
 
 ## Depenency documents
 
-- look in the docs folder for depenency details
+- look in the docs folder for depenency details about jdt
 - ask the user to clone more repos if you require further specific details
 
