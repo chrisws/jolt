@@ -1,5 +1,10 @@
 # Project Jolt
 
+## Dual objectives
+
+- Building project Jolt
+- Testing Hali
+
 ## Build System
 - Maven project, pom.xml in server/pom.xml
 - Use TOOL:BUILD for all build operations
@@ -31,3 +36,9 @@ public String getFqn() {
 }
 
 ```
+
+## Depenency documents
+
+- look in the docs folder for depenency details
+- ask the user to clone more repos if you require further specific details
+
