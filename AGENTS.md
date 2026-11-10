@@ -47,7 +47,6 @@ public String getFqn() {
 
 ```
 jolt/
-├── docker/Dockerfile
 ├── server/
 │   ├── src/main/java/com/jolt/
 │   │   ├── JoltApp.java       # Entry point, Picocli CLI, starts Javalin
@@ -60,7 +59,7 @@ jolt/
 │   │   ├── model/             # Domain objects (ClassSymbol, MethodSymbol, etc.)
 │   │   └── watch/             # File watcher, .jolt/ directory management
 │   └── pom.xml                # maven-shade-plugin → target/jolt.jar
-├── web/                       # React + Vite frontend (embedded in JAR)
+├── web/                       # Plain ES6 frontend with vendored JS libs (embedded in JAR)
 ├── tests/                     # Server and web test suites
 ├── docs/                      # Architecture, API reference, deployment guide
 └── plans/java-code-explorer.md  # Full technical plan

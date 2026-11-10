@@ -16,6 +16,7 @@ usage() {
   echo "  (none)    Build server JAR"
   echo "  build     Build server JAR"
   echo "  run       Start Jolt server"
+  echo "  dev       Run from source with live-reload (open browser with ?dev)"
   echo "  index     Force full re-index, then start server"
   echo ""
   echo "Options (passed through to jolt for run/index):"
@@ -38,6 +39,7 @@ shift
 case "$CMD" in
   build)   build_server ;;
   run)     exec java ${JAVA_OPTS} -jar "$JAR" "$@" ;;
+  dev)     exec mvn -f server/pom.xml compile exec:java -Dexec.args="$@" -q ;;
   index)   exec java ${JAVA_OPTS} -jar "$JAR" --reindex "$@" ;;
   *)       echo "Unknown command: $CMD" >&2; usage; exit 1 ;;
 esac

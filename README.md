@@ -1,6 +1,6 @@
 # Jolt
 
-[![Jolt](.hali/badge.svg)](.hali/badge.svg)
+[![Jolt](.hali/badge.svg)](.hali/badge.svg) [![Tests](.hali/test_badge.svg)](.hali/test_badge.svg)
 
 A server-side Java code explorer with IntelliJ-like navigation, accessible from a browser. Built for large legacy codebases (100K–500K+ files), it provides fast search, go-to-definition, find-references, class hierarchy, call graphs, git blame/log/diff review for agent-made changes — all shareable via URL.
 
@@ -48,11 +48,10 @@ No code editing/refactoring, compilation/build integration, debugging, or attemp
 | Semantic Search | ONNX Runtime (all-MiniLM-L6-v2) | 1.18.0 |
 | Web Server | Javalin (embedded Jetty) — REST + WebSocket | 5.6.3 |
 | CLI Parsing | Picocli | 4.7.5 |
-| Frontend | React + Monaco Editor + Vite | React 18, Monaco 0.45, Vite 5 |
+| Frontend | Plain ES6 + Monaco Editor (vendored) | Monaco 0.45 |
 | Git | JGit (Eclipse) | 6.8.0 |
 | Logging | Logback Classic | 1.5.3 |
 | Build (server) | Maven → single fat JAR (`maven-shade-plugin`) | shade 3.5.1, surefire 3.2.5 |
-| Build (frontend) | Vite → static assets embedded in JAR via `src/main/resources/static` | — |
 | Testing | JUnit Jupiter (Jupiter) + Surefire plugin for server; manual browser testing for UI
 
 ---
@@ -95,19 +94,8 @@ No config files. No `application.properties`. Everything via CLI flags with sens
 
 - **JDK 21** (LTS) — `java -version` must report 21+
 - **Maven 3.8+** — `mvn -version`
-- **Node.js 18+** and **npm** — for building the frontend (only needed if you modify `web/`)
 
-### Step 1: Build the frontend (only if you changed `web/`)
-
-```bash
-cd web
-npm install
-npm run build          # outputs to ../server/src/main/resources/static/
-```
-
-The Vite build writes compiled JS/CSS into `server/src/main/resources/static/`, which Maven packages into the JAR. If you haven't touched the frontend, skip this step — pre-built assets are already committed.
-
-### Step 2: Build the server JAR
+### Step 1: Build the server JAR
 
 ```bash
 cd server
@@ -122,7 +110,7 @@ server/target/jolt-server-0.1.0-SNAPSHOT.jar
 
 The `maven-shade-plugin` bundles all dependencies (JDT, Lucene, Javalin, JGit, ONNX Runtime, etc.) into one self-contained executable JAR. You can rename it to `jolt.jar` for convenience.
 
-### Step 3: Run
+### Step 2: Run
 
 ```bash
 java -jar server/target/jolt-server-0.1.0-SNAPSHOT.jar --home /path/to/codebase
@@ -177,7 +165,7 @@ mvn test -Dtest=LuceneIndexerTest
    java -jar jolt-server-0.1.0-SNAPSHOT.jar --home /path/to/some-java-project --port 9000
    ```
 
-2. **Open the browser** at `http://localhost:9000` — the React+Monaco UI loads from the embedded static assets.
+2. **Open the browser** at `http://localhost:9000` — the Monaco UI loads from the embedded static assets.
 
 3. **Exercise the key flows:**
    - **Search**: type in the search bar → results appear with file/line/symbol info. Try both text and symbol-mode search.
@@ -437,23 +425,26 @@ jolt/
 │   │   └── watch/
 │   │       ├── FileWatcher.java      # WatchService-based file change detection + debounce
 │   │       └── FileChangeEvent.java  # Event record: path + event type (modify/create/delete)
-│   ├── src/main/resources/static/    # Pre-built frontend assets (from Vite)
+│   ├── src/main/resources/static/    # Frontend: plain ES6 + vendored libs
+│   │   ├── index.html                # Single-page app shell
+│   │   ├── app.js                    # All app logic (ES6)
+│   │   ├── style.css                 # Stylesheet
+│   │   └── hljs/                     # Vendored highlight.js
+│   │       ├── highlight.min.js
+│   │       └── theme-github-dark.css
 │   ├── src/test/java/com/jolt/       # JUnit 5 test suites (14 test classes)
 │   └── pom.xml                       # Maven config: shade plugin → fat JAR
-├── web/                              # React + Vite frontend source
-│   ├── src/
-│   │   ├── App.jsx                   # Main app shell (tabs, layout)
-│   │   ├── api.js                    # REST API client
-│   │   ├── ws.js                     # WebSocket client
-│   │   ├── components/               # EditorPane, SearchBar, FileTree, Breadcrumbs,
-│   │   │                             # StatusBar, Dashboard, GitLogPanel, DiffViewer,
+
+
+
+
 │|tool_result
 HALI_TOOL_RESULT: TOOL_RESULT: OK: appended to /home/chrisws/src/jolt/README.md
 
-│   │   │                             # CallGraphPanel, BlameGutter, QuickOpen, FeedbackButton
-│   │   └── languages/                # Monaco language configuration files
-│   ├── package.json                  # npm deps: React 18, Monaco 0.45, Vite 5
-│   └── vite.config.js                # Build config → outputs to server/src/main/resources/static
+
+
+
+
 ├── docs/                             # Dependency docs (JDT, JGit)
 ├── plans/java-code-explorer.md       # Full technical plan (original design doc)
 └── AGENTS.md                         # Project conventions for AI assistants
@@ -492,4 +483,4 @@ These files are safe to delete; Jolt will recreate them as needed. The Lucene in
 
 ## Status
 
-> **Phase 1–4 implemented.** Core navigation (search, go-to-definition, references, hierarchy, call graph), JSP/Spring/J2EE parsing, git integration (log, diff, blame, branches), live file watching, bookmarks, settings, dashboard, and the full React+Monaco frontend are in place. 14 JUnit test classes cover the server-side components. Semantic search is available but opt-in (requires model file). Docker packaging and multi-project support are not yet implemented.> **Phase 1–4 implemented.** Core navigation (search, go-to-definition, references, hierarchy, call graph), JSP/Spring/J2EE parsing, git integration (log, diff, blame, branches), live file watching, bookmarks, settings, dashboard, and the full React+Monaco frontend are in place. 14 JUnit test classes cover the server-side components. Semantic search is available but opt-in (requires model file). Docker packaging and multi-project support are not yet implemented.
+> **Phase 1–4 implemented.** Core navigation (search, go-to-definition, references, hierarchy, call graph), JSP/Spring/J2EE parsing, git integration (log, diff, blame, branches), live file watching, bookmarks, settings, dashboard, and the full ES6+Monaco frontend are in place. 14 JUnit test classes cover the server-side components. Semantic search is available but opt-in (requires model file). Multi-project support is not yet implemented.

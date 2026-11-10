@@ -14,6 +14,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -237,6 +238,213 @@ class GitServiceTest {
     Files.createDirectory(nonRepo);
     GitService svc = new GitService(nonRepo);
     assertTrue(svc.diff("abc", "def").isEmpty());
+  }
+
+  // ─── stats() tests ───────────────────────────────────────────────
+
+  @Test
+  void stats_returnsCorrectTotals() {
+    Map<String, Object> s = service.stats();
+    assertEquals(2, s.get("totalCommits"));
+    assertEquals(2, s.get("totalContributors"));
+  }
+
+  @Test
+  void stats_hasAllRequiredKeys() {
+    Map<String, Object> s = service.stats();
+    assertNotNull(s.get("totalCommits"));
+    assertNotNull(s.get("totalContributors"));
+    assertNotNull(s.get("firstCommitDate"));
+    assertNotNull(s.get("lastCommitDate"));
+    assertNotNull(s.get("currentBranch"));
+    assertNotNull(s.get("topCommitters"));
+    assertNotNull(s.get("longestStreak"));
+    assertNotNull(s.get("currentStreak"));
+    assertNotNull(s.get("busiestDay"));
+    assertNotNull(s.get("busiestDayCount"));
+  }
+
+  @Test
+  @SuppressWarnings("unchecked")
+  void stats_topCommitters_containsBothAuthors() {
+    Map<String, Object> s = service.stats();
+    List<Map<String, Object>> top = (List<Map<String, Object>>) s.get("topCommitters");
+    assertNotNull(top);
+    assertEquals(2, top.size());
+
+    Set<String> names = top.stream().map(m -> (String) m.get("name")).collect(java.util.stream.Collectors.toSet());
+    assertTrue(names.contains("Alice"));
+    assertTrue(names.contains("Bob"));
+
+    // Each has exactly 1 commit on main
+    for (Map<String, Object> c : top) {
+      assertEquals(1, c.get("commits"));
+    }
+  }
+
+  @Test
+  void stats_busiestDay_hasAtLeastOneCommit() {
+    Map<String, Object> s = service.stats();
+    int busiestCount = (int) s.get("busiestDayCount");
+    assertTrue(busiestCount >= 1);
+
+    String busiestDay = (String) s.get("busiestDay");
+    assertFalse(busiestDay.isBlank());
+  }
+
+  @Test
+  void stats_onNonRepo_returnsError() throws IOException {
+    Path nonRepo = tempDir.resolve("no-repo-stats");
+    Files.createDirectory(nonRepo);
+    GitService svc = new GitService(nonRepo);
+    Map<String, Object> s = svc.stats();
+    assertTrue(s.containsKey("error"));
+  }
+
+  // ─── commitsPaginated() tests ────────────────────────────────────
+
+  @Test
+  @SuppressWarnings("unchecked")
+  void commitsPaginated_returnsAllOnFirstPage() {
+    Map<String, Object> result = service.commitsPaginated(null, null, null, null, 0, 10);
+    List<Map<String, Object>> commits = (List<Map<String, Object>>) result.get("commits");
+    assertEquals(2, commits.size());
+    assertEquals(2, result.get("total"));
+    assertEquals(1, result.get("totalPages"));
+  }
+
+  @Test
+  @SuppressWarnings("unchecked")
+  void commitsPaginated_respectsPageSize() {
+    Map<String, Object> result = service.commitsPaginated(null, null, null, null, 0, 1);
+    List<Map<String, Object>> commits = (List<Map<String, Object>>) result.get("commits");
+    assertEquals(1, commits.size());
+    assertEquals(2, result.get("total"));
+    assertEquals(2, result.get("totalPages"));
+  }
+
+  @Test
+  @SuppressWarnings("unchecked")
+  void commitsPaginated_secondPageReturnsOlderCommit() {
+    Map<String, Object> page0 = service.commitsPaginated(null, null, null, null, 0, 1);
+    Map<String, Object> page1 = service.commitsPaginated(null, null, null, null, 1, 1);
+
+    List<Map<String, Object>> c0 = (List<Map<String, Object>>) page0.get("commits");
+    List<Map<String, Object>> c1 = (List<Map<String, Object>>) page1.get("commits");
+
+    // Page 0 = newest ("second commit"), Page 1 = oldest ("initial commit")
+    assertEquals("second commit", c0.get(0).get("message"));
+    assertEquals("initial commit", c1.get(0).get("message"));
+  }
+
+  @Test
+  @SuppressWarnings("unchecked")
+  void commitsPaginated_filtersByAuthor() {
+    Map<String, Object> result = service.commitsPaginated(null, "Alice", null, null, 0, 10);
+    List<Map<String, Object>> commits = (List<Map<String, Object>>) result.get("commits");
+    assertEquals(1, commits.size());
+    assertEquals("Alice", commits.get(0).get("author"));
+  }
+
+  @Test
+  @SuppressWarnings("unchecked")
+  void commitsPaginated_commitHasRequiredFields() {
+    Map<String, Object> result = service.commitsPaginated(null, null, null, null, 0, 10);
+    List<Map<String, Object>> commits = (List<Map<String, Object>>) result.get("commits");
+    assertFalse(commits.isEmpty());
+
+    Map<String, Object> c = commits.get(0);
+    assertNotNull(c.get("hash"));
+    assertNotNull(c.get("abbrevHash"));
+    assertNotNull(c.get("author"));
+    assertNotNull(c.get("email"));
+    assertNotNull(c.get("date"));
+    assertNotNull(c.get("message"));
+    assertNotNull(c.get("filesChanged"));
+
+    // abbrevHash should be 8 chars
+    assertEquals(8, ((String) c.get("abbrevHash")).length());
+  }
+
+  @Test
+  @SuppressWarnings("unchecked")
+  void commitsPaginated_filesChangedCounted() {
+    Map<String, Object> result = service.commitsPaginated(null, null, null, null, 0, 10);
+    List<Map<String, Object>> commits = (List<Map<String, Object>>) result.get("commits");
+
+    // "second commit" changed hello.txt + added world.txt = 2 files
+    Map<String, Object> second = commits.stream()
+        .filter(c -> "second commit".equals(c.get("message"))).findFirst().orElse(null);
+    assertNotNull(second);
+    assertEquals(2, second.get("filesChanged"));
+
+    // "initial commit" added hello.txt = 1 file
+    Map<String, Object> first = commits.stream()
+        .filter(c -> "initial commit".equals(c.get("message"))).findFirst().orElse(null);
+    assertNotNull(first);
+    assertEquals(1, first.get("filesChanged"));
+  }
+
+  @Test
+  void commitsPaginated_onNonRepo_returnsError() throws IOException {
+    Path nonRepo = tempDir.resolve("no-repo-pag");
+    Files.createDirectory(nonRepo);
+    GitService svc = new GitService(nonRepo);
+    Map<String, Object> result = svc.commitsPaginated(null, null, null, null, 0, 10);
+    assertTrue(result.containsKey("error"));
+  }
+
+  // ─── activity() tests ────────────────────────────────────────────
+
+  @Test
+  void activity_returns365CellsForNonLeapYear() {
+    List<Map<String, Object>> cells = service.activity(2025);
+    assertEquals(365, cells.size());
+  }
+
+  @Test
+  void activity_returns366CellsForLeapYear() {
+    List<Map<String, Object>> cells = service.activity(2024);
+    assertEquals(366, cells.size());
+  }
+
+  @Test
+  void activity_countsCommitsOnToday() {
+    int currentYear = java.time.LocalDate.now().getYear();
+    List<Map<String, Object>> cells = service.activity(currentYear);
+
+    String todayStr = java.time.LocalDate.now().toString();
+    Map<String, Object> todayCell = cells.stream()
+        .filter(c -> todayStr.equals(c.get("date"))).findFirst().orElse(null);
+
+    assertNotNull(todayCell);
+    // Both commits in setUp were made today
+    assertEquals(2, todayCell.get("count"));
+  }
+
+  @Test
+  void activity_mostDaysHaveZeroCount() {
+    int currentYear = java.time.LocalDate.now().getYear();
+    List<Map<String, Object>> cells = service.activity(currentYear);
+
+    long zeroDays = cells.stream().filter(c -> Integer.valueOf(0).equals(c.get("count"))).count();
+    // Only today has commits, so most days should be zero
+    assertTrue(zeroDays > 300);
+  }
+
+  @Test
+  void activity_datesAreSequential() {
+    List<Map<String, Object>> cells = service.activity(2025);
+    assertEquals("2025-01-01", cells.get(0).get("date"));
+    assertEquals("2025-12-31", cells.get(cells.size() - 1).get("date"));
+  }
+
+  @Test
+  void activity_onNonRepo_returnsEmpty() throws IOException {
+    Path nonRepo = tempDir.resolve("no-repo-act");
+    Files.createDirectory(nonRepo);
+    GitService svc = new GitService(nonRepo);
+    assertTrue(svc.activity(2025).isEmpty());
   }
 
 }

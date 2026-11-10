@@ -14,6 +14,7 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 /** Manages the Lucene index for full-text and structured symbol search. */
 public class LuceneIndexer implements AutoCloseable {
@@ -123,6 +124,11 @@ public class LuceneIndexer implements AutoCloseable {
 
   /** Search across all indexed documents. */
   public List<SearchHit> search(String queryText, SymbolKind kindFilter, int maxResults) throws Exception {
+    return search(queryText, kindFilter, maxResults, 0); // no fuzzy by default
+  }
+
+  /** Search with optional fuzzy fallback. If {@code maxEdits > 0}, supplements sparse results with FuzzyQuery. */
+  public List<SearchHit> search(String queryText, SymbolKind kindFilter, int maxResults, int maxEdits) throws Exception {
     QueryParser parser = new QueryParser("body", ANALYZER); // search in body field primarily
 
     BooleanQuery.Builder builder = new BooleanQuery.Builder();
@@ -173,6 +179,53 @@ public class LuceneIndexer implements AutoCloseable {
             scoreDoc.score
         ));
       }
+
+      // Fuzzy fallback: if results are sparse and maxEdits > 0, supplement with FuzzyQuery
+      if (maxEdits > 0 && queryText != null && !queryText.isBlank() && hits.size() < maxResults && queryText.length() >= 3) {
+        Query fuzzyQ = new FuzzyQuery(new Term("name", queryText.toLowerCase()), maxEdits);
+
+        // Apply kind filter to fuzzy query too
+        Query finalFuzzyQ;
+        if (kindFilter != null) {
+          BooleanQuery.Builder fb = new BooleanQuery.Builder();
+          fb.add(fuzzyQ, BooleanClause.Occur.MUST);
+          fb.add(new TermQuery(new Term("kind", kindFilter.name())), BooleanClause.Occur.FILTER);
+          finalFuzzyQ = fb.build();
+        } else {
+          finalFuzzyQ = fuzzyQ;
+        }
+
+        TopDocs fuzzyDocs = searcher.search(finalFuzzyQ, maxResults - hits.size());
+
+        // Avoid duplicates by id
+        Set<String> seenIds = new java.util.HashSet<>();
+        for (SearchHit h : hits) seenIds.add(h.id());
+
+        for (var scoreDoc : fuzzyDocs.scoreDocs) {
+          Document doc = searcher.storedFields().document(scoreDoc.doc);
+          String id = doc.get("id") != null ? doc.get("id") : "";
+          if (seenIds.contains(id)) continue;
+
+          SymbolKind kind;
+          try { kind = SymbolKind.valueOf(doc.get("kind")); } catch (Exception e) { kind = SymbolKind.FILE; }
+
+          int lineStart = 0;
+          String lsStr = doc.get("_lineStartStr");
+          if (lsStr != null) { try { lineStart = Integer.parseInt(lsStr); } catch (NumberFormatException ignored) {} }
+
+          hits.add(new SearchHit(
+              id, kind,
+              doc.get("name") != null ? doc.get("name") : "",
+              doc.get("qualifiedName") != null ? doc.get("qualifiedName") : "",
+              doc.get("filePath") != null ? doc.get("filePath") : "",
+              lineStart,
+              scoreDoc.score * 0.8f // slight penalty for fuzzy matches vs exact
+          ));
+
+          if (hits.size() >= maxResults) break;
+        }
+      }
+
       return hits;
     } finally {
       searcherMgr.release(searcher);
@@ -266,6 +319,85 @@ public class LuceneIndexer implements AutoCloseable {
     }
     double denom = Math.sqrt(normA) * Math.sqrt(normB);
     return denom == 0 ? 0.0 : dot / denom;
+  }
+
+  /**
+   * Predictive suggestions: prefix match on the "name" field, falling back to
+   * fuzzy match when prefix yields fewer than {@code limit} results.
+   * Returns up to {@code limit} SearchHit objects sorted by score.
+   */
+  public List<SearchHit> suggest(String query, int limit) throws Exception {
+    if (query == null || query.isBlank()) return List.of();
+
+    searcherMgr.maybeRefresh();
+    IndexSearcher searcher = searcherMgr.acquire();
+    try {
+      // Phase 1: PrefixQuery on "name" field (fast, exact prefix)
+      Query prefixQ = new PrefixQuery(new Term("name", query.toLowerCase()));
+
+      TopDocs topDocs = searcher.search(prefixQ, limit);
+
+      List<SearchHit> hits = new ArrayList<>();
+      for (var scoreDoc : topDocs.scoreDocs) {
+        Document doc = searcher.storedFields().document(scoreDoc.doc);
+        SymbolKind kind;
+        try { kind = SymbolKind.valueOf(doc.get("kind")); } catch (Exception e) { kind = SymbolKind.FILE; }
+
+        int lineStart = 0;
+        String lsStr = doc.get("_lineStartStr");
+        if (lsStr != null) { try { lineStart = Integer.parseInt(lsStr); } catch (NumberFormatException ignored) {} }
+
+        hits.add(new SearchHit(
+            doc.get("id") != null ? doc.get("id") : "",
+            kind,
+            doc.get("name") != null ? doc.get("name") : "",
+            doc.get("qualifiedName") != null ? doc.get("qualifiedName") : "",
+            doc.get("filePath") != null ? doc.get("filePath") : "",
+            lineStart,
+            scoreDoc.score
+        ));
+      }
+
+      // Phase 2: If prefix gave fewer results than limit, supplement with FuzzyQuery
+      if (hits.size() < limit && query.length() >= 3) {
+        int maxEdits = query.length() <= 4 ? 1 : 2; // tighter for short queries
+        Query fuzzyQ = new FuzzyQuery(new Term("name", query.toLowerCase()), maxEdits);
+
+        TopDocs fuzzyDocs = searcher.search(fuzzyQ, limit - hits.size());
+
+        // Avoid duplicates by id
+        Set<String> seenIds = new java.util.HashSet<>();
+        for (SearchHit h : hits) seenIds.add(h.id());
+
+        for (var scoreDoc : fuzzyDocs.scoreDocs) {
+          Document doc = searcher.storedFields().document(scoreDoc.doc);
+          String id = doc.get("id") != null ? doc.get("id") : "";
+          if (seenIds.contains(id)) continue;
+
+          SymbolKind kind;
+          try { kind = SymbolKind.valueOf(doc.get("kind")); } catch (Exception e) { kind = SymbolKind.FILE; }
+
+          int lineStart = 0;
+          String lsStr = doc.get("_lineStartStr");
+          if (lsStr != null) { try { lineStart = Integer.parseInt(lsStr); } catch (NumberFormatException ignored) {} }
+
+          hits.add(new SearchHit(
+              id, kind,
+              doc.get("name") != null ? doc.get("name") : "",
+              doc.get("qualifiedName") != null ? doc.get("qualifiedName") : "",
+              doc.get("filePath") != null ? doc.get("filePath") : "",
+              lineStart,
+              scoreDoc.score * 0.8f // slight penalty for fuzzy matches vs prefix
+          ));
+
+          if (hits.size() >= limit) break;
+        }
+      }
+
+      return hits;
+    } finally {
+      searcherMgr.release(searcher);
+    }
   }
 
   /** Flush pending writes to disk. */

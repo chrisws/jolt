@@ -15,7 +15,9 @@
       <span class="logo">Jolt</span>
       <div class="search-box">
         <input type="text" id="search-input" placeholder="Search code…  (Ctrl+Shift+F)" autocomplete="off">
+        <div class="suggest-dropdown" id="suggest-dropdown" role="listbox"></div>
       </div>
+      <button class="settings-btn" id="settings-btn" title="Settings" aria-label="Settings">&#x2699;</button>
     </header>
 
     <!-- Sidebar: file tree -->
@@ -35,11 +37,14 @@
 
       <!-- Code viewer -->
       <div class="code-viewer" id="code-viewer">
-        <div class="empty-state">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-            <path d="M16 18l6-6-6-6M8 6l-6 6 6 6"/>
-          </svg>
-          <span>Select a file to view</span>
+        <div class="welcome">
+          <div class="welcome-logo">Jolt</div>
+          <p class="welcome-sub">Java code explorer &amp; agent output reviewer</p>
+          <div class="welcome-hints">
+            <div class="hint-item"><span class="hint-icon">&#x2022;</span><span>Search code with <kbd>Ctrl+Shift+F</kbd></span></div>
+            <div class="hint-item"><span class="hint-icon">&#x2022;</span><span>Click files in the tree to open tabs</span></div>
+            <div class="hint-item git-hint"><span class="hint-icon">&#x2022;</span><span>This project is tracked with Git. View commit history, diffs &amp; contributor stats <a href="/git" class="git-link">&rarr;</a></span></div>
+          </div>
         </div>
       </div>
 
@@ -56,7 +61,69 @@
     <div id="search-results"></div>
   </aside>
 
+  <!-- Settings panel (slides in from right) -->
+  <aside class="settings-panel" id="settings-panel" aria-label="Settings">
+    <div class="panel-header">
+      <strong>Settings</strong>
+      <button id="settings-close" aria-label="Close settings">&times;</button>
+    </div>
+
+    <div class="settings-section">
+      <h3>Search</h3>
+      <div class="setting-row">
+        <label for="set-fuzzy-edits">Fuzzy max edits</label>
+        <input type="number" id="set-fuzzy-edits" min="0" max="3" step="1">
+      </div>
+      <div class="setting-row">
+        <label for="set-suggest-limit">Suggestion limit</label>
+        <input type="number" id="set-suggest-limit" min="1" max="50" step="1">
+      </div>
+    </div>
+
+    <div class="settings-section">
+      <h3>Git Diff</h3>
+      <div class="setting-row">
+        <label for="set-diff-maxlines">Max lines per file</label>
+        <input type="number" id="set-diff-maxlines" min="100" max="10000" step="100">
+      </div>
+      <div class="setting-row">
+        <label for="set-diff-view">Default view</label>
+        <select id="set-diff-view">
+          <option value="unified">Unified</option>
+          <option value="split">Split</option>
+          <option value="raw">Raw</option>
+        </select>
+      </div>
+    </div>
+
+    <button class="settings-save-btn" id="settings-save">Save Settings</button>
+    <div class="settings-saved-msg" id="settings-saved-msg"></div>
+  </aside>
+
   <script src="hljs/highlight.min.js"></script>
   <script src="app.js"></script>
+
+  <!-- Dev live-reload: active only when ?dev is in the URL -->
+  <script>
+    if (new URLSearchParams(location.search).has('dev')) {
+      (function() {
+        let lastMtime = 0;
+        async function poll() {
+          try {
+            const res = await fetch('/api/dev/mtime');
+            const data = await res.json();
+            if (lastMtime && data.mtime !== lastMtime) {
+              console.log('[jolt-dev] Static files changed, reloading…');
+              location.reload();
+            }
+            lastMtime = data.mtime;
+          } catch (_) {}
+          setTimeout(poll, 2000);
+        }
+        poll();
+      })();
+    }
+  </script>
+
 </body>
 </html>

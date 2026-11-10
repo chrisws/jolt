@@ -88,9 +88,14 @@ public class ApiRoutes {
       int maxResults = 50;
       try { maxResults = Integer.parseInt(ctx.queryParam("limit")); } catch (Exception ignored) {}
 
+      // Read fuzzy maxEdits from settings (default 2)
+      int maxEdits = 2;
+      Object cfgEdits = settingsSvc.getSetting("search.fuzzy.maxEdits");
+      if (cfgEdits instanceof Number n) { maxEdits = Math.max(0, Math.min(3, n.intValue())); }
+
       List<SearchHit> hits;
       try {
-        hits = indexer.search(q, kindFilter, maxResults);
+        hits = indexer.search(q, kindFilter, maxResults, maxEdits);
       } catch (Exception e) {
         log.error("Search failed: {}", e.getMessage());
         ctx.status(500).json(Map.of("error", e.getMessage()));
@@ -98,6 +103,29 @@ public class ApiRoutes {
       }
 
       ctx.json(hits);
+    });
+
+    // --- Search Suggestions (typeahead) ---
+    routes.get("/api/search/suggest", ctx -> {
+      String q = ctx.queryParam("q");
+      if (q == null || q.isBlank()) { ctx.json(List.of()); return; }
+
+      int limit = 10; // default, overridable via settings
+      try { limit = Integer.parseInt(ctx.queryParam("limit")); } catch (Exception ignored) {}
+
+      // Read limit from settings if no explicit param
+      if (ctx.queryParam("limit") == null) {
+        Object cfgLimit = settingsSvc.getSetting("search.suggest.limit");
+        if (cfgLimit instanceof Number n) { limit = n.intValue(); }
+      }
+
+      try {
+        List<SearchHit> hits = indexer.suggest(q, limit);
+        ctx.json(hits);
+      } catch (Exception e) {
+        log.error("Suggest failed: {}", e.getMessage());
+        ctx.status(500).json(Map.of("error", e.getMessage()));
+      }
     });
 
     // --- Semantic Search ---
@@ -602,6 +630,99 @@ public class ApiRoutes {
       Map<String, Object> response = new java.util.LinkedHashMap<>(result);
       response.put("availableModes", keybindingsSvc.availableModes());
       ctx.json(response);
+    });
+
+    // --- Git Stats (Stage 3a) ---
+    routes.get("/api/git/stats", ctx -> {
+      Map<String, Object> stats = gitSvc.stats();
+      ctx.json(stats);
+    });
+
+    // --- Git Commits Paginated (Stage 3b) ---
+    routes.get("/api/git/commits", ctx -> {
+      String branch = ctx.queryParam("branch");
+      String author = ctx.queryParam("author");
+      String from = ctx.queryParam("from");
+      String to = ctx.queryParam("to");
+
+      int page = 0, size = 25;
+      try { page = Math.max(0, Integer.parseInt(ctx.queryParam("page"))); } catch (Exception ignored) {}
+      try { size = Math.min(100, Math.max(1, Integer.parseInt(ctx.queryParam("size")))); } catch (Exception ignored) {}
+
+      Map<String, Object> result = gitSvc.commitsPaginated(branch, author, from, to, page, size);
+      ctx.json(result);
+    });
+
+    // --- Git Activity Heatmap (Stage 6a) ---
+    routes.get("/api/git/activity", ctx -> {
+      int year = java.time.Year.now().getValue();
+      try { year = Integer.parseInt(ctx.queryParam("year")); } catch (Exception ignored) {}
+
+      List<Map<String, Object>> cells = gitSvc.activity(year);
+      ctx.json(Map.of("year", year, "cells", cells));
+    });
+
+    // --- Git Commit Enhanced Detail (Stage 4a) ---
+    routes.get("/api/git/commit/enhanced", ctx -> {
+      String hash = ctx.queryParam("hash");
+      if (hash == null || hash.isBlank()) { ctx.status(400).result("Missing 'hash' parameter"); return; }
+
+      Map<String, Object> detail = gitSvc.commitDetailEnhanced(hash);
+      if (detail.containsKey("error")) { ctx.status(404).json(detail); return; }
+      ctx.json(detail);
+    });
+
+    // --- Git Raw File at Commit (Stage 5b) ---
+    routes.get("/api/git/commit/raw", ctx -> {
+      String hash = ctx.queryParam("hash");
+      String path = ctx.queryParam("path");
+
+      if (hash == null || hash.isBlank()) { ctx.status(400).result("Missing 'hash' parameter"); return; }
+      if (path == null || path.isBlank()) { ctx.status(400).result("Missing 'path' parameter"); return; }
+
+      String content = gitSvc.rawFileAtCommit(hash, path);
+      if (content == null) { ctx.status(404).result("File not found at commit: " + path); return; }
+
+      // Set content type based on extension
+      String ct = "text/plain";
+      String lower = path.toLowerCase();
+      if (lower.endsWith(".png")) ct = "image/png";
+      else if (lower.endsWith(".jpg") || lower.endsWith(".jpeg")) ct = "image/jpeg";
+      else if (lower.endsWith(".gif")) ct = "image/gif";
+      else if (lower.endsWith(".svg")) ct = "image/svg+xml";
+
+      ctx.contentType(ct);
+      ctx.result(content);
+    });
+
+    // --- Git Commit Patch Download (Stage 5d) ---
+    routes.get("/api/git/commit/patch", ctx -> {
+      String hash = ctx.queryParam("hash");
+      if (hash == null || hash.isBlank()) { ctx.status(400).result("Missing 'hash' parameter"); return; }
+
+      String patch = gitSvc.generatePatch(hash);
+      ctx.contentType("text/plain");
+      ctx.header("Content-Disposition", "attachment; filename=" + hash.substring(0, Math.min(8, hash.length())) + ".patch");
+      ctx.result(patch);
+    });
+
+    // --- Dev: live-reload timestamp ---
+    routes.get("/api/dev/mtime", ctx -> {
+      Path staticDir = homeDir.resolve("server/src/main/resources/static");
+      if (!Files.exists(staticDir)) {
+        // Fallback: check classpath static dir (when running from JAR)
+        staticDir = Path.of("src/main/resources/static");
+      }
+      long maxMtime = 0;
+      try (var stream = Files.walk(staticDir)) {
+        maxMtime = stream.filter(Files::isRegularFile)
+            .mapToLong(p -> {
+              try { return Files.getLastModifiedTime(p).toMillis(); }
+              catch (Exception ex) { return 0L; }
+            })
+            .max().orElse(0);
+      } catch (Exception e) { /* return 0 */ }
+      ctx.json(Map.of("mtime", maxMtime));
     });
 
     log.info("API routes registered");

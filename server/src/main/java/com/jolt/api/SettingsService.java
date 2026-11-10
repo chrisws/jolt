@@ -82,6 +82,15 @@ public class SettingsService {
     defaults.put("showLineNumbers", true);       // show line numbers gutter
     defaults.put("minimapEnabled", true);        // show minimap in editor
     defaults.put("gitAutoRefresh", true);        // auto-refresh git panel on change
+
+    // Search settings (Stage 2)
+    defaults.put("search.fuzzy.maxEdits", 2);     // max edit distance for fuzzy fallback (0-3)
+    defaults.put("search.suggest.limit", 10);     // max suggestions returned by /api/search/suggest
+
+    // Git diff settings (Stage 2)
+    defaults.put("git.diff.maxLines", 1000);      // cap diff rendering at N lines per file
+    defaults.put("git.diff.defaultView", "unified"); // "unified" | "split" | "raw"
+
     return defaults;
   }
 
@@ -89,7 +98,9 @@ public class SettingsService {
     return switch (key) {
       case "keybindingMode", "theme", "fontSize", "tabSize",
            "wordWrap", "showLineNumbers", "minimapEnabled",
-           "gitAutoRefresh" -> true;
+           "gitAutoRefresh",
+           "search.fuzzy.maxEdits", "search.suggest.limit",
+           "git.diff.maxLines", "git.diff.defaultView" -> true;
       default -> false;
     };
   }
