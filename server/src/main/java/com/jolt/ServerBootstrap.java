@@ -131,7 +131,10 @@ package com.jolt;
       } catch (Exception e) {
         log.warn("Error during shutdown: {}", e.getMessage());
       }
-    }, "jolt-shutdown"));  
+    }, "jolt-shutdown"));
+
+    // Keep main thread alive (Javalin 7 start() is non-blocking)
+    Thread.currentThread().join();  
 
   }  
 

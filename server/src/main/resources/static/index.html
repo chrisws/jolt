@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Jolt</title>
+  <link rel="stylesheet" href="hljs/theme-github-dark.css">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="app">
+
+    <!-- Top bar -->
+    <header class="topbar">
+      <span class="logo">Jolt</span>
+      <div class="search-box">
+        <input type="text" id="search-input" placeholder="Search code…  (Ctrl+Shift+F)" autocomplete="off">
+      </div>
+    </header>
+
+    <!-- Sidebar: file tree -->
+    <nav class="sidebar" id="file-tree" aria-label="File tree">
+      <div class="section-label">Project</div>
+      <!-- populated by app.js -->
+    </nav>
+
+    <!-- Main: tabs + breadcrumb + code viewer -->
+    <main class="main">
+
+      <!-- Tab bar -->
+      <div class="tab-bar" id="tab-bar" role="tablist"></div>
+
+      <!-- Breadcrumb -->
+      <div class="breadcrumb" id="breadcrumb"></div>
+
+      <!-- Code viewer -->
+      <div class="code-viewer" id="code-viewer">
+        <div class="empty-state">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M16 18l6-6-6-6M8 6l-6 6 6 6"/>
+          </svg>
+          <span>Select a file to view</span>
+        </div>
+      </div>
+
+    </main>
+
+  </div>
+
+  <!-- Search results panel (slides in from right) -->
+  <aside class="search-panel" id="search-panel" aria-label="Search results">
+    <div class="panel-header">
+      <strong>Results</strong>
+      <button id="search-close" aria-label="Close search">&times;</button>
+    </div>
+    <div id="search-results"></div>
+  </aside>
+
+  <script src="hljs/highlight.min.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
