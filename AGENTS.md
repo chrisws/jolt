@@ -39,7 +39,7 @@ public String getFqn() {
 
 ## Depenency documents
 
-- look in the docs folder for depenency details about jdt
+- look in the docs folder for depenency details about jdt, jgit
 - ask the user to clone more repos if you require further specific details
 
 

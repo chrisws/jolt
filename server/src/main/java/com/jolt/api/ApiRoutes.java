@@ -1,5 +1,6 @@
 package com.jolt.api;
 
+import com.jolt.git.BlameService;
 import com.jolt.index.LuceneIndexer;
 import com.jolt.model.*;
 import com.jolt.nav.SymbolTable;
@@ -7,6 +8,7 @@ import io.javalin.Javalin;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
@@ -17,14 +19,18 @@ public class ApiRoutes {
 
   private static final Logger log = LoggerFactory.getLogger(ApiRoutes.class);
 
-  private final SymbolTable symbolTable;
-  private final LuceneIndexer indexer;
-  private final Path homeDir; // root of the codebase being indexed
+  private final SymbolTable symbolTable;  
+  private final LuceneIndexer indexer;  
+  private final Path homeDir; // root of the codebase being indexed  
+  private final FeedbackService feedback;
+  private final BlameService blameSvc;  
 
-  public ApiRoutes(SymbolTable symbolTable, LuceneIndexer indexer, Path homeDir) {
-    this.symbolTable = symbolTable;
-    this.indexer = indexer;
-    this.homeDir = homeDir.toAbsolutePath().normalize();
+  public ApiRoutes(SymbolTable symbolTable, LuceneIndexer indexer, Path homeDir) {    
+    this.symbolTable = symbolTable;    
+    this.indexer = indexer;    
+    this.homeDir = homeDir.toAbsolutePath().normalize();    
+    this.feedback = new FeedbackService(this.homeDir);
+    this.blameSvc = new BlameService(this.homeDir); 
   }
 
   /** Register all routes on the given Javalin app. */  
@@ -207,7 +213,53 @@ public class ApiRoutes {
       ctx.json(refList);
     });
 
-    log.info("API routes registered");
+    // ─── Git Blume ──────────────────────────────────────────── 
+    app.get("/api/blame", ctx -> {      
+      String path = ctx.queryParam("path");    
+      if (path == null || path.isBlank()) { ctx.status(400).result("Missing 'path' parameter"); return; }  
+
+      int startLine = 1;    
+      int endLine = Integer.MAX_VALUE;     
+      String startStr = ctx.queryParam("start");   
+      if (startStr != null) { try { startLine = Math.max(1, Integer.parseInt(startStr)); } catch (NumberFormatException ignored) {} }   
+      String endStr = ctx.queryParam("end");     
+      if (endStr != null) { try { endLine = Integer.parseInt(endStr); } catch (NumberFormatException ignored) {} }    
+
+      Path filePath = homeDir.resolve(path).normalize();  
+      if (!filePath.startsWith(homeDir)) { ctx.status(403).result("Access denied"); return; }  
+      if (!Files.exists(filePath)) { ctx.status(404).result("File not found: " + path); return; } 
+
+      try {        
+        List<BlameLine> lines = blameSvc.blame(path, startLine, endLine);       
+        ctx.json(lines);      
+   } catch (IOException e) {        
+     log.error("Blume failed for {}: {}", path, e.getMessage());       
+     ctx.status(500).json(Map.of("error", e.getMessage()));     
+   }    
+  }); 
+
+    // ─── Feedback ────────────────────────────────────────────── 
+    app.post("/api/feedback", ctx -> {      
+      try {        
+        var body = ctx.bodyAsClass(Map.class);        
+        String page = (String) body.getOrDefault("page", "unknown");        
+        String file = (String) body.get("file");        
+        String message = (String) body.get("message");        
+
+        if (message == null || message.isBlank()) {          
+          ctx.status(400).json(Map.of("error", "Message is required")); return;   
+       }      
+
+        Map<String, Object> entry = feedback.record(page, file, message);  
+        ctx.status(201).json(entry);  
+
+     } catch (Exception e) {       
+       log.error("Feedback write failed: {}", e.getMessage());       
+       ctx.status(500).json(Map.of("error", e.getMessage()));     
+   }    
+  }); 
+
+  log.info("API routes registered");
   }
 
   private static String detectLanguage(String path) {
