@@ -105,22 +105,24 @@ public class SpringXmlParser {
     }
   }
 
-  /** Recursively collect all <ref bean="..."/> values from a bean element. */
+  /** Recursively collect all ref values from a bean element. */
   private void collectRefs(org.w3c.dom.Element beanEl, List<String> deps) {
     var children = beanEl.getChildNodes();
     for (int i = 0; i < children.getLength(); i++) {
       var child = children.item(i);
       if (!(child instanceof org.w3c.dom.Element el)) continue;
 
-      // Direct <ref bean="..."/> in constructor-arg or property
+      // Shorthand: <constructor-arg ref="..."/> or <property ref="..."/>
+      if (el.getTagName().equals("constructor-arg") || el.getTagName().equals("property")) {
+        String refAttr = el.getAttribute("ref");
+        if (!refAttr.isEmpty()) deps.add(refAttr);
+        collectRefs(el, deps);
+      }
+
+      // Nested form: <ref bean="..."/> as a child element
       if (el.getTagName().equals("ref")) {
         String refBean = el.getAttribute("bean");
         if (!refBean.isEmpty()) deps.add(refBean);
-      }
-
-      // Recurse into constructor-arg and property elements
-      if (el.getTagName().equals("constructor-arg") || el.getTagName().equals("property")) {
-        collectRefs(el, deps);
       }
 
       // Handle <list>, <map>, <set> containers inside property/constructor-arg

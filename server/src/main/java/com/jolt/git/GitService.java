@@ -265,16 +265,14 @@ public class GitService {
     return result;
   }
 
-  /** List all file paths in a commit by diffing against the empty tree. */
+  /** List all file paths in a commit by walking its tree. */
   private List<String> listAllFilesInCommit(Repository repo, RevCommit commit) throws Exception {
-    ObjectId emptyTreeId = ObjectId.fromString(EMPTY_TREE);
-    DiffFormatter formatter = new DiffFormatter(new ByteArrayOutputStream());
-    formatter.setRepository(repo);
+    var walk = new org.eclipse.jgit.treewalk.TreeWalk(repo);
+    walk.addTree(commit.getTree());
 
-    List<DiffEntry> diffs = formatter.scan(emptyTreeId, commit.getTree());
     List<String> files = new ArrayList<>();
-    for (DiffEntry de : diffs) {
-      files.add(de.getNewPath());
+    while (walk.next()) {
+      files.add(walk.getPathString());
     }
     return files;
   }

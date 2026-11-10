@@ -43,6 +43,9 @@ class GitServiceTest {
     git.add().addFilepattern(".").call();
     git.commit().setMessage("second commit").setAuthor("Bob", "bob@test.com").call();
 
+    // Save main branch name before switching
+    String mainBranch = git.getRepository().getBranch();
+
     // Third commit on a new branch
     git.branchCreate().setName("feature").call();
     git.checkout().setName("feature").call();
@@ -52,7 +55,6 @@ class GitServiceTest {
     git.commit().setMessage("feature work").setAuthor("Alice", "alice@test.com").call();
 
     // Switch back to master/main
-    String mainBranch = getMainBranchName();
     git.checkout().setName(mainBranch).call();
   }
 
@@ -88,7 +90,7 @@ class GitServiceTest {
   @Test
   void log_returnsAllCommits() {
     List<Map<String, Object>> commits = service.log(10, null, null);
-    assertEquals(3, commits.size());
+    assertEquals(2, commits.size());
 
     // Most recent first (on main branch: initial + second)
     assertEquals("second commit", commits.get(0).get("message"));
