@@ -12,6 +12,7 @@ package com.jolt;
  import com.jolt.watch.FileChangeEvent;
  import com.jolt.watch.FileWatcher;
  import io.javalin.Javalin;
+ import io.javalin.http.staticfiles.Location;
  import org.slf4j.Logger;
  import org.slf4j.LoggerFactory;
 
@@ -85,7 +86,7 @@ package com.jolt;
        System.setProperty("javalin.host", host);  
      }  
 
-     Javalin app = Javalin.create();
+     Javalin app = Javalin.create(cfg -> cfg.staticFiles.add("/static", Location.CLASSPATH));
 
      // Load optional embedding model for semantic search (shared by WsHub + ApiRoutes)
      EmbeddingService embedder = null;

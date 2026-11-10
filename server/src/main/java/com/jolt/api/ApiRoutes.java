@@ -51,9 +51,10 @@ public class ApiRoutes {
 
   /** Register all routes on the given Javalin app. */
   public void register(Javalin app) {
+    var routes = app.unsafe.routes;
 
     // --- Status ---
-    app.get("/api/status", ctx -> {
+    routes.get("/api/status", ctx -> {
       Map<String, Object> status = Map.of(
           "classesIndexed", symbolTable.size(),
           "status", "ok"
@@ -62,7 +63,7 @@ public class ApiRoutes {
     });
 
     // --- Dashboard ---
-    app.get("/api/dashboard", ctx -> {
+    routes.get("/api/dashboard", ctx -> {
       int classes = symbolTable.size();
       int methods = 0;
       for (var cs : symbolTable.allClassSymbols()) {
@@ -73,7 +74,7 @@ public class ApiRoutes {
     });
 
     // --- Search ---
-    app.get("/api/search", ctx -> {
+    routes.get("/api/search", ctx -> {
       String q = ctx.queryParam("q");
       if (q == null || q.isBlank()) { ctx.status(400).result("Missing 'q' parameter"); return; }
 
@@ -100,7 +101,7 @@ public class ApiRoutes {
     });
 
     // --- Semantic Search ---
-    app.get("/api/search/semantic", ctx -> {
+    routes.get("/api/search/semantic", ctx -> {
       String q = ctx.queryParam("q");
       if (q == null || q.isBlank()) { ctx.status(400).result("Missing 'q' parameter"); return; }
 
@@ -126,7 +127,7 @@ public class ApiRoutes {
     });
 
     // --- File Content ---
-    app.get("/api/file", ctx -> {
+    routes.get("/api/file", ctx -> {
       String path = ctx.queryParam("path");
       if (path == null || path.isBlank()) { ctx.status(400).result("Missing 'path' parameter"); return; }
 
@@ -159,7 +160,7 @@ public class ApiRoutes {
     });
 
     // --- Go-to-Definition ---
-    app.get("/api/definition", ctx -> {
+    routes.get("/api/definition", ctx -> {
       String symbol = ctx.queryParam("symbol");
       if (symbol == null || symbol.isBlank()) { ctx.status(400).result("Missing 'symbol' parameter"); return; }
 
@@ -197,7 +198,7 @@ public class ApiRoutes {
     });
 
     // --- Class Hierarchy ---
-    app.get("/api/hierarchy", ctx -> {
+    routes.get("/api/hierarchy", ctx -> {
       String cls = ctx.queryParam("class");
       if (cls == null || cls.isBlank()) { ctx.status(400).result("Missing 'class' parameter"); return; }
 
@@ -220,7 +221,7 @@ public class ApiRoutes {
     });
 
     // --- File Tree ---
-    app.get("/api/file/tree", ctx -> {
+    routes.get("/api/file/tree", ctx -> {
       String path = ctx.queryParam("path");
       Path dirPath = homeDir.resolve(path != null ? path : "").normalize();
 
@@ -251,7 +252,7 @@ public class ApiRoutes {
     });
 
     // --- Find References ---
-    app.get("/api/references", ctx -> {
+    routes.get("/api/references", ctx -> {
       String symbol = ctx.queryParam("symbol");
       if (symbol == null || symbol.isBlank()) { ctx.status(400).result("Missing 'symbol' parameter"); return; }
 
@@ -265,7 +266,7 @@ public class ApiRoutes {
     });
 
     // --- Call Graph ---
-    app.get("/api/call-graph", ctx -> {
+    routes.get("/api/call-graph", ctx -> {
       String method = ctx.queryParam("method");
       if (method == null || method.isBlank()) { ctx.status(400).result("Missing 'method' parameter"); return; }
 
@@ -295,7 +296,7 @@ public class ApiRoutes {
     });
 
     // --- Call Graph: Who Calls Me ---
-    app.get("/api/call-graph/callers", ctx -> {
+    routes.get("/api/call-graph/callers", ctx -> {
       String method = ctx.queryParam("method");
       if (method == null || method.isBlank()) { ctx.status(400).result("Missing 'method' parameter"); return; }
 
@@ -311,7 +312,7 @@ public class ApiRoutes {
     });
 
     // --- JSP Parse ---
-    app.get("/api/jsp/parse", ctx -> {
+    routes.get("/api/jsp/parse", ctx -> {
       String path = ctx.queryParam("path");
       if (path == null || path.isBlank()) { ctx.status(400).result("Missing 'path' parameter"); return; }
 
@@ -339,7 +340,7 @@ public class ApiRoutes {
     });
 
     // --- Spring XML Beans ---
-    app.get("/api/spring/beans", ctx -> {
+    routes.get("/api/spring/beans", ctx -> {
       String path = ctx.queryParam("path");
       if (path == null || path.isBlank()) { ctx.status(400).result("Missing 'path' parameter"); return; }
 
@@ -368,7 +369,7 @@ public class ApiRoutes {
     });
 
     // --- Git Blame ---
-    app.get("/api/blame", ctx -> {
+    routes.get("/api/blame", ctx -> {
       String path = ctx.queryParam("path");
       if (path == null || path.isBlank()) { ctx.status(400).result("Missing 'path' parameter"); return; }
 
@@ -393,21 +394,21 @@ public class ApiRoutes {
     });
 
     // --- J2EE: web.xml ---
-    app.get("/api/j2ee/webxml", ctx -> {
+    routes.get("/api/j2ee/webxml", ctx -> {
       var j2ee = new com.jolt.parse.J2eeService(homeDir);
       Map<String, Object> result = j2ee.parseWebXml();
       ctx.json(result);
     });
 
     // --- J2EE: persistence.xml ---
-    app.get("/api/j2ee/persistence", ctx -> {
+    routes.get("/api/j2ee/persistence", ctx -> {
       var j2ee = new com.jolt.parse.J2eeService(homeDir);
       Map<String, Object> result = j2ee.parsePersistenceXml();
       ctx.json(result);
     });
 
     // --- J2EE: Annotations (EJB + DI) ---
-    app.get("/api/j2ee/annotations", ctx -> {
+    routes.get("/api/j2ee/annotations", ctx -> {
       var j2ee = new com.jolt.parse.J2eeService(homeDir);
       try {
         List<Path> javaFiles = com.jolt.parse.FileWalker.findJavaFiles(homeDir);
@@ -419,7 +420,7 @@ public class ApiRoutes {
     });
 
     // --- J2EE: Wiring Graph ---
-    app.get("/api/j2ee/wiring-graph", ctx -> {
+    routes.get("/api/j2ee/wiring-graph", ctx -> {
       var j2ee = new com.jolt.parse.J2eeService(homeDir);
       try {
         List<Path> javaFiles = com.jolt.parse.FileWalker.findJavaFiles(homeDir);
@@ -444,7 +445,7 @@ public class ApiRoutes {
     });
 
     // --- Git Log ---
-    app.get("/api/git/log", ctx -> {
+    routes.get("/api/git/log", ctx -> {
       int count = 30;
       try { count = Integer.parseInt(ctx.queryParam("count")); } catch (Exception ignored) {}
 
@@ -456,7 +457,7 @@ public class ApiRoutes {
     });
 
     // --- Git Diff (file list) ---
-    app.get("/api/git/diff", ctx -> {
+    routes.get("/api/git/diff", ctx -> {
       String from = ctx.queryParam("from"); // optional — if null, diff commit vs parent
       String to = ctx.queryParam("to");     // required — the commit to diff at
 
@@ -467,7 +468,7 @@ public class ApiRoutes {
     });
 
     // --- Git File Diff (content) ---
-    app.get("/api/git/file-diff", ctx -> {
+    routes.get("/api/git/file-diff", ctx -> {
       String from = ctx.queryParam("from");
       String to = ctx.queryParam("to");
       String path = ctx.queryParam("path");
@@ -480,19 +481,19 @@ public class ApiRoutes {
     });
 
     // --- Git Branches ---
-    app.get("/api/git/branches", ctx -> {
+    routes.get("/api/git/branches", ctx -> {
       List<Map<String, Object>> branches = gitSvc.branches();
       ctx.json(branches);
     });
 
     // --- Git Current Branch ---
-    app.get("/api/git/branch", ctx -> {
+    routes.get("/api/git/branch", ctx -> {
       String branch = gitSvc.currentBranch();
       ctx.json(Map.of("branch", branch));
     });
 
     // --- Git Commit Detail ---
-    app.get("/api/git/commit", ctx -> {
+    routes.get("/api/git/commit", ctx -> {
       String hash = ctx.queryParam("hash");
       if (hash == null || hash.isBlank()) { ctx.status(400).result("Missing 'hash' parameter"); return; }
 
@@ -503,11 +504,11 @@ public class ApiRoutes {
     // --- Bookmarks ---
     var bookmarksSvc = new BookmarksService(homeDir);
 
-    app.get("/api/bookmarks", ctx -> {
+    routes.get("/api/bookmarks", ctx -> {
       ctx.json(bookmarksSvc.getBookmarks());
     });
 
-    app.post("/api/bookmarks", ctx -> {
+    routes.post("/api/bookmarks", ctx -> {
       try {
         var body = ctx.bodyAsClass(Map.class);
         String path = (String) body.get("path");
@@ -523,7 +524,7 @@ public class ApiRoutes {
       }
     });
 
-    app.delete("/api/bookmarks", ctx -> {
+    routes.delete("/api/bookmarks", ctx -> {
       String path = ctx.queryParam("path");
       int line = 0;
       try { line = Integer.parseInt(ctx.queryParam("line")); } catch (Exception ignored) {}
@@ -536,17 +537,17 @@ public class ApiRoutes {
     });
 
     // --- Recent Files ---
-    app.get("/api/recent", ctx -> {
+    routes.get("/api/recent", ctx -> {
       ctx.json(bookmarksSvc.getRecentFiles());
     });
 
     // --- Search History ---
-    app.get("/api/search/history", ctx -> {
+    routes.get("/api/search/history", ctx -> {
       ctx.json(bookmarksSvc.getSearchHistory());
     });
 
     // --- Feedback ---
-    app.post("/api/feedback", ctx -> {
+    routes.post("/api/feedback", ctx -> {
       try {
         var body = ctx.bodyAsClass(Map.class);
         String page = (String) body.getOrDefault("page", "unknown");
@@ -568,11 +569,11 @@ public class ApiRoutes {
 
 
     // --- Settings ---
-    app.get("/api/settings", ctx -> {
+    routes.get("/api/settings", ctx -> {
       ctx.json(settingsSvc.getSettings());
     });
 
-    app.put("/api/settings", ctx -> {
+    routes.put("/api/settings", ctx -> {
       try {
         @SuppressWarnings("unchecked")
         Map<String, Object> body = ctx.bodyAsClass(Map.class);
@@ -585,7 +586,7 @@ public class ApiRoutes {
     });
 
     // --- Keybindings ---
-    app.get("/api/keybindings", ctx -> {
+    routes.get("/api/keybindings", ctx -> {
       String mode = ctx.queryParam("mode");
       if (mode == null || mode.isBlank()) { mode = "default"; }
 

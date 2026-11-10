@@ -6,7 +6,7 @@ import org.apache.lucene.index.*;
 import org.apache.lucene.search.*;
 import org.apache.lucene.queryparser.classic.QueryParser;
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.store.FSDirectory;
+import org.apache.lucene.store.NIOFSDirectory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -25,7 +25,7 @@ public class LuceneIndexer implements AutoCloseable {
   private volatile SearcherManager searcherMgr;
 
   public LuceneIndexer(Path indexPath) throws IOException {
-    this.directory = FSDirectory.open(indexPath);
+    this.directory = NIOFSDirectory.open(indexPath);
 
     IndexWriterConfig config = new IndexWriterConfig(ANALYZER);
 

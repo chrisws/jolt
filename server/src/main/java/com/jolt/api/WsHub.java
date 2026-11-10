@@ -6,6 +6,7 @@ import com.jolt.index.EmbeddingService;
 import com.jolt.index.LuceneIndexer;
 import com.jolt.model.SearchHit;
 import io.javalin.Javalin;
+import io.javalin.websocket.WsHandlerType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -41,7 +42,7 @@ public class WsHub {
 
   /** Register the WebSocket endpoint on the Javalin app. */
   public void register(Javalin app) {
-    app.ws("/ws", ws -> {
+    app.unsafe.routes.addWsHandler(WsHandlerType.WEBSOCKET, "/ws", ws -> {
 
       ws.onConnect(ctx -> {
         connectionCount.incrementAndGet();
