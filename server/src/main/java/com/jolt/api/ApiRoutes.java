@@ -35,7 +35,7 @@ public class ApiRoutes {
   private final SettingsService settingsSvc;
   private final KeybindingsService keybindingsSvc;
 
-  public ApiRoutes(SymbolTable symbolTable, LuceneIndexer indexer, Path homeDir, CallGraph callGraph) {
+  public ApiRoutes(SymbolTable symbolTable, LuceneIndexer indexer, Path homeDir, CallGraph callGraph, EmbeddingService embedder) {
     this.symbolTable = symbolTable;
     this.indexer = indexer;
     this.homeDir = homeDir.toAbsolutePath().normalize();
@@ -46,21 +46,7 @@ public class ApiRoutes {
     this.gitSvc = new GitService(this.homeDir);
     this.settingsSvc = new SettingsService(this.homeDir);
     this.keybindingsSvc = new KeybindingsService();
-
-    // Try to load the ONNX embedding model (optional feature)
-    EmbeddingService svc = null;
-    try {
-      Path modelPath = this.homeDir.resolve(".jolt/models/all-MiniLM-L6-v2.onnx");
-      if (Files.exists(modelPath)) {
-        svc = new EmbeddingService(modelPath);
-        log.info("Semantic search enabled (model: {})", modelPath.getFileName());
-      } else {
-        log.info("Embedding model not found at {} — semantic search disabled", modelPath);
-      }
-    } catch (Exception e) {
-      log.warn("Failed to load embedding model: {}", e.getMessage());
-    }
-    this.embedder = svc;
+    this.embedder = embedder; // nullable — passed from ServerBootstrap
   }
 
   /** Register all routes on the given Javalin app. */

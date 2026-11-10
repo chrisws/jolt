@@ -2,6 +2,7 @@ package com.jolt;
 
  import com.jolt.api.ApiRoutes;
  import com.jolt.api.WsHub;
+ import com.jolt.index.EmbeddingService;
  import com.jolt.index.LuceneIndexer;
  import com.jolt.model.ClassSymbol;
  import com.jolt.nav.CallGraph;
@@ -84,14 +85,28 @@ package com.jolt;
        System.setProperty("javalin.host", host);  
      }  
 
-     Javalin app = Javalin.create();  
+     Javalin app = Javalin.create();
 
-     // WebSocket hub for live notifications  
-     WsHub wsHub = new WsHub();  
-     wsHub.register(app);  
+     // Load optional embedding model for semantic search (shared by WsHub + ApiRoutes)
+     EmbeddingService embedder = null;
+     try {
+       Path modelPath = homeDir.resolve(".jolt/models/all-MiniLM-L6-v2.onnx");
+       if (Files.exists(modelPath)) {
+         embedder = new EmbeddingService(modelPath);
+         log.info("Semantic search enabled (model: {})", modelPath.getFileName());
+       } else {
+         log.info("Embedding model not found at {} — semantic search disabled", modelPath);
+       }
+     } catch (Exception e) {
+       log.warn("Failed to load embedding model: {}", e.getMessage());
+     }
 
-     ApiRoutes routes = new ApiRoutes(symbolTable, indexer, homeDir, callGraph);  
-     routes.register(app);  
+     // WebSocket hub for live notifications + search
+     WsHub wsHub = new WsHub(indexer, embedder);
+     wsHub.register(app);
+
+     ApiRoutes routes = new ApiRoutes(symbolTable, indexer, homeDir, callGraph, embedder);
+     routes.register(app);
 
      // File watcher → broadcast changes via WebSocket  
      FileWatcher fileWatcher = new FileWatcher(homeDir, 300L);  

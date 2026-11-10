@@ -1,11 +1,34 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import * as api from '../api';
+import { sendWs } from '../ws';
+
+const DEBOUNCE_MS = 300;
+const MIN_QUERY_LEN = 2;
 
 export default function SearchBar({ onResults }) {
   const [query, setQuery] = useState('');
   const [mode, setMode] = useState('text'); // 'text' | 'semantic'
   const inputRef = useRef(null);
+  const debounceRef = useRef(null);
 
+  // Debounced live search via WebSocket
+  function handleInputChange(e) {
+    const val = e.target.value;
+    setQuery(val);
+
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+
+    const trimmed = val.trim();
+    if (trimmed.length >= MIN_QUERY_LEN) {
+      debounceRef.current = setTimeout(() => {
+        sendWs({ type: 'search', q: trimmed, mode, limit: 50 });
+      }, DEBOUNCE_MS);
+    } else {
+      onResults([]); // clear results for short/empty queries
+    }
+  }
+
+  // Enter key still works as explicit search (HTTP fallback)
   async function handleSearch(e) {
     e.preventDefault();
     if (!query.trim()) return;
@@ -17,8 +40,8 @@ export default function SearchBar({ onResults }) {
     } catch (err) { console.error('Search failed:', err); }
   }
 
-  // Ctrl+Shift+F to focus search
-  React.useEffect(() => {
+  // Ctrl+Shift+F to focus search + cleanup debounce on unmount
+  useEffect(() => {
     const handler = (e) => {
       if (e.ctrlKey && e.shiftKey && e.key === 'F') {
         e.preventDefault();
@@ -26,7 +49,10 @@ export default function SearchBar({ onResults }) {
       }
     };
     window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
+    return () => {
+      window.removeEventListener('keydown', handler);
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
   }, []);
 
   return (
@@ -40,7 +66,7 @@ export default function SearchBar({ onResults }) {
         type="text" 
         placeholder={mode === 'semantic' ? 'Semantic search… (Ctrl+Shift+F)' : 'Search symbols, files… (Ctrl+Shift+F)'}
         value={query} 
-        onChange={(e) => setQuery(e.target.value)} 
+        onChange={handleInputChange} 
         style={styles.input}
       />
       <button type="submit" style={styles.btn}>🔍</button>

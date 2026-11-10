@@ -11,6 +11,7 @@
  import CallGraphPanel from './components/CallGraphPanel';
  import DiffViewer from './components/DiffViewer';
  import * as api from './api';
+ import { connectWs, disconnectWs, onWsMessage } from './ws';
 
 export default function App() {  
   const [tabs, setTabs] = useState([]);  
@@ -27,6 +28,20 @@ export default function App() {
   // Load status on mount  
   useEffect(() => {    
     api.getStatus().then(setStatusInfo).catch(console.error);   
+  }, []);  
+
+  // WebSocket: connect, listen for search results + file changes, cleanup on unmount
+  useEffect(() => {
+    connectWs();
+    const unsub = onWsMessage((data) => {
+      if (data.type === 'search_results') {
+        setSearchResults(data.results || []);
+      } else if (data.type === 'file_changed') {
+        // Could refresh open tabs here in the future
+        console.debug('File changed:', data.path, data.event);
+      }
+    });
+    return () => { unsub(); disconnectWs(); };
   }, []);  
 
   // ─── Keyboard Shortcuts ──────────────────────────────────────
