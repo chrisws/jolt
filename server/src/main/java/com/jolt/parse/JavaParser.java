@@ -1,47 +1,55 @@
 package com.jolt.parse;
 
-import com.jolt.model.ClassSymbol;
-import com.jolt.model.FieldSymbol;
-import com.jolt.model.MethodSymbol;
-import com.jolt.model.SymbolKind;
-import org.eclipse.jdt.core.dom.AST;
-import org.eclipse.jdt.core.dom.ASTNode;
-import org.eclipse.jdt.core.dom.ASTParser;
-import org.eclipse.jdt.core.dom.CompilationUnit;
-import org.eclipse.jdt.core.dom.EnumDeclaration;
-import org.eclipse.jdt.core.dom.AbstractTypeDeclaration;
-import org.eclipse.jdt.core.dom.FieldDeclaration;
-import org.eclipse.jdt.core.dom.MethodDeclaration;
-import org.eclipse.jdt.core.dom.RecordDeclaration;
-import org.eclipse.jdt.core.dom.TypeDeclaration;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+ import com.jolt.model.CallEdge;
+ import com.jolt.model.ClassSymbol;
+ import com.jolt.model.FieldSymbol;
+ import com.jolt.model.MethodSymbol;
+ import com.jolt.model.SymbolKind;
+ import com.jolt.nav.CallGraph;
+ import org.eclipse.jdt.core.dom.AST;
+ import org.eclipse.jdt.core.dom.ASTNode;
+ import org.eclipse.jdt.core.dom.ASTParser;
+ import org.eclipse.jdt.core.dom.CompilationUnit;
+ import org.eclipse.jdt.core.dom.EnumDeclaration;
+ import org.eclipse.jdt.core.dom.AbstractTypeDeclaration;
+ import org.eclipse.jdt.core.dom.FieldDeclaration;
+ import org.eclipse.jdt.core.dom.MethodDeclaration;
+ import org.eclipse.jdt.core.dom.MethodInvocation;
+ import org.eclipse.jdt.core.dom.RecordDeclaration;
+ import org.eclipse.jdt.core.dom.TypeDeclaration;
+ import org.slf4j.Logger;
+ import org.slf4j.LoggerFactory;
 
-import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.List;
+ import java.io.IOException;
+ import java.nio.charset.StandardCharsets;
+ import java.nio.file.Files;
+ import java.nio.file.Path;
+ import java.util.ArrayList;
+ import java.util.List;
 
-/** Parses .java files using the JDT AST to extract type symbols. */  
-public class JavaParser {  
+ /** Parses .java files using the JDT AST to extract type symbols. */  
+ public class JavaParser {  
 
-  private static final Logger log = LoggerFactory.getLogger(JavaParser.class);  
+   private static final Logger log = LoggerFactory.getLogger(JavaParser.class);  
 
-  /** Parse a .java file and extract all top-level type symbols. */  
-  public List<ClassSymbol> parse(Path filePath) {  
-    try {  
-      String source = readFile(filePath);  
-      return doParse(source, filePath);  
-    } catch (IOException e) {  
-      log.warn("Failed to read {}: {}", filePath, e.getMessage());  
-      return List.of();  
-    } catch (Exception e) {  
-      log.debug("Parse error in {}: {}", filePath, e.getMessage());  
-      return List.of(); // graceful degradation — caller indexes as raw text  
-    }  
-  }  
+   private CallGraph callGraph; // nullable — set via setCallGraph()
+
+   /** Set the call graph to populate during parsing. */  
+   public void setCallGraph(CallGraph cg) { this.callGraph = cg; }  
+
+   /** Parse a .java file and extract all top-level type symbols. */  
+   public List<ClassSymbol> parse(Path filePath) {  
+     try {  
+       String source = readFile(filePath);  
+       return doParse(source, filePath);  
+     } catch (IOException e) {  
+       log.warn("Failed to read {}: {}", filePath, e.getMessage());  
+       return List.of();  
+     } catch (Exception e) {  
+       log.debug("Parse error in {}: {}", filePath, e.getMessage());  
+       return List.of(); // graceful degradation — caller indexes as raw text  
+     }  
+   }  
 
   private List<ClassSymbol> doParse(String source, Path filePath) {  
     ASTParser parser = ASTParser.newParser(AST.JLS21);  
@@ -238,6 +246,42 @@ public class JavaParser {
     // Key by name+params to support overloads: "name(T1,T2)" 
     String key = methodName + "(" + String.join(",", params) + ")";  
     cs.methods.put(key, ms);  
+
+    // Extract call sites for the call graph  
+    if (callGraph != null && md.getBody() != null) {  
+      extractCallSites(md.getBody(), classFqn + "#" + methodName, source);  
+    }  
+  }  
+
+  /** Walk the method body AST collecting MethodInvocation nodes. */  
+  private void extractCallSites(ASTNode body, String callerFqn, String source) {  
+    body.accept(new org.eclipse.jdt.core.dom.ASTVisitor() {  
+      @Override  
+      public boolean visit(MethodInvocation node) {  
+        try {  
+          String calleeName = node.getName().getIdentifier();  
+          String receiver = "";  
+          if (node.getExpression() != null) {  
+            // Try to get the receiver type name from the expression text  
+            String exprText = node.getExpression().toString().trim();  
+            // If it's a simple name (variable), use it as-is; if it's "this", skip  
+            if (!exprText.equals("this") && !exprText.isEmpty()) {  
+              // Take just the first token (type name hint)  
+              receiver = exprText.split("\\.")[0];  
+            }  
+          } else {  
+            // No receiver — likely a method in the same class or inherited  
+            receiver = "";  
+          }  
+
+          int line = ParseUtils.offsetToLine(source, node.getStartPosition());  
+          callGraph.addEdge(new CallEdge(callerFqn, calleeName, receiver, line));  
+        } catch (Exception e) {  
+          // Skip malformed nodes silently  
+        }  
+        return true; // continue visiting children  
+      }  
+    });  
   }  
 
   private void handleField(FieldDeclaration fd, ClassSymbol cs, String source) {  

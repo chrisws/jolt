@@ -97,6 +97,9 @@ public class SymbolTable {
   /** All indexed FQNs (for debugging / status endpoint). */  
   public Set<String> allClasses() { return Collections.unmodifiableSet(classes.keySet()); }
 
+  /** All indexed ClassSymbol objects (for aggregation queries). */
+  public Collection<ClassSymbol> allClassSymbols() { return Collections.unmodifiableCollection(classes.values()); }
+
   /** Clear the table (used on reindex). */
   public void clear() {
     classes.clear();

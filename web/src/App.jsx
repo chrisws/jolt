@@ -1,12 +1,16 @@
-import React, { useState, useEffect } from 'react';  
-import FileTree from './components/FileTree';  
-import EditorPane from './components/EditorPane';  
-import SearchBar from './components/SearchBar';  
-import StatusBar from './components/StatusBar';  
-import Breadcrumbs from './components/Breadcrumbs';  
-import QuickOpen from './components/QuickOpen';  
-import FeedbackButton from './components/FeedbackButton';  
-import * as api from './api';  
+ import React, { useState, useEffect } from 'react';
+ import FileTree from './components/FileTree';
+ import EditorPane from './components/EditorPane';
+ import SearchBar from './components/SearchBar';
+ import StatusBar from './components/StatusBar';
+ import Breadcrumbs from './components/Breadcrumbs';
+ import QuickOpen from './components/QuickOpen';
+ import FeedbackButton from './components/FeedbackButton';
+ import Dashboard from './components/Dashboard';
+ import GitLogPanel from './components/GitLogPanel';
+ import CallGraphPanel from './components/CallGraphPanel';
+ import DiffViewer from './components/DiffViewer';
+ import * as api from './api';
 
 export default function App() {  
   const [tabs, setTabs] = useState([]);  
@@ -14,6 +18,10 @@ export default function App() {
   const [searchResults, setSearchResults] = useState([]);  
   const [statusInfo, setStatusInfo] = useState({ classesIndexed: 0 });  
   const [quickOpenVisible, setQuickOpenVisible] = useState(false);  
+  // Phase 2-3 panels  
+  const [showGitLog, setShowGitLog] = useState(false);  
+  const [callGraphMethod, setCallGraphMethod] = useState(null);  
+  const [diffState, setDiffState] = useState(null); // {commitHash, filePath}  
 
   // Load status on mount  
   useEffect(() => {    
@@ -115,23 +123,56 @@ export default function App() {
         <button style={styles.copyBtn} onClick={copyLink} title="Copy link to this file">     
           {statusInfo.copied ? '✓ Copied!' : '🔗 Copy Link'}   
         </button> 
+        <button style={styles.copyBtn} onClick={() => setShowGitLog(v => !v)} title="Toggle Git Log">     
+          {showGitLog ? '✕ Git' : '📋 Git Log'}   
+        </button> 
+        <button style={styles.copyBtn} onClick={() => setCallGraphMethod(callGraphMethod ? null : (activePath ? activePath.split('/').pop().replace('.java','') + '#main' : null))} title="Toggle Call Graph">     
+          {callGraphMethod ? '✕ Graph' : '📊 Call Graph'}   
+        </button> 
       </div> 
 
       {/* Breadcrumbs for active file */}
       <Breadcrumbs path={activePath} />
 
-      {/* Main area: tree + editor */}
+      {/* Main area: tree + editor, or dashboard when no tabs */}
       <div style={styles.mainArea}>
-        <FileTree onSelectFile={openFile} activePath={activePath} />
-        
-        <EditorPane 
-          tabs={tabs} 
-          activeTabId={activeTabId} 
-          onActivateTab={setActiveTabId} 
-          onCloseTab={closeTab} 
-          searchResults={searchResults} 
-          onResultClick={onSearchResultClick}
-        />
+        {tabs.length === 0 ? (
+          <Dashboard />
+        ) : (
+          <>
+            <FileTree onSelectFile={openFile} activePath={activePath} />
+
+            <EditorPane 
+              tabs={tabs} 
+              activeTabId={activeTabId} 
+              onActivateTab={setActiveTabId} 
+              onCloseTab={closeTab} 
+              searchResults={searchResults} 
+              onResultClick={onSearchResultClick}
+            />
+
+            {/* Phase 2: Call Graph panel */}
+            {callGraphMethod && (
+              <div style={{ width: '280px', borderLeft: '1px solid #313244' }}>
+                <CallGraphPanel method={callGraphMethod} onClose={() => setCallGraphMethod(null)} />
+              </div>
+            )}
+
+            {/* Phase 3: Git Log panel */}
+            {showGitLog && (
+              <div style={{ width: '300px', borderLeft: '1px solid #313244' }}>
+                <GitLogPanel onSelectCommit={(hash) => { /* could open diff */ }} />
+              </div>
+            )}
+
+            {/* Phase 3: Diff Viewer */}
+            {diffState && (
+              <div style={{ flex: 1, borderLeft: '1px solid #313244' }}>
+                <DiffViewer commitHash={diffState.commitHash} filePath={diffState.filePath} onClose={() => setDiffState(null)} />
+              </div>
+            )}
+          </>
+        )}
       </div>  
 
       {/* Bottom bar */}  

@@ -1,8 +1,11 @@
 package com.jolt.api;
 
 import com.jolt.git.BlameService;
+import com.jolt.git.GitService;
+import com.jolt.index.EmbeddingService;
 import com.jolt.index.LuceneIndexer;
 import com.jolt.model.*;
+import com.jolt.nav.CallGraph;
 import com.jolt.nav.SymbolTable;
 import io.javalin.Javalin;
 import org.slf4j.Logger;
@@ -13,30 +16,53 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
-/** Wires up all REST endpoints on the Javalin instance. */  
+/** Wires up all REST endpoints on the Javalin instance. */
 public class ApiRoutes {
 
   private static final Logger log = LoggerFactory.getLogger(ApiRoutes.class);
 
-  private final SymbolTable symbolTable;  
-  private final LuceneIndexer indexer;  
-  private final Path homeDir; // root of the codebase being indexed  
+  private final SymbolTable symbolTable;
+  private final LuceneIndexer indexer;
+  private final Path homeDir;
   private final FeedbackService feedback;
-  private final BlameService blameSvc;  
+  private final BlameService blameSvc;
+  private final DashboardService dashboard;
+  private final EmbeddingService embedder; // nullable — null if model file missing
+  private final CallGraph callGraph;
+  private final GitService gitSvc;
 
-  public ApiRoutes(SymbolTable symbolTable, LuceneIndexer indexer, Path homeDir) {    
-    this.symbolTable = symbolTable;    
-    this.indexer = indexer;    
-    this.homeDir = homeDir.toAbsolutePath().normalize();    
+  public ApiRoutes(SymbolTable symbolTable, LuceneIndexer indexer, Path homeDir, CallGraph callGraph) {
+    this.symbolTable = symbolTable;
+    this.indexer = indexer;
+    this.homeDir = homeDir.toAbsolutePath().normalize();
     this.feedback = new FeedbackService(this.homeDir);
-    this.blameSvc = new BlameService(this.homeDir); 
+    this.blameSvc = new BlameService(this.homeDir);
+    this.dashboard = new DashboardService(this.homeDir);
+    this.callGraph = callGraph;
+    this.gitSvc = new GitService(this.homeDir);
+
+    // Try to load the ONNX embedding model (optional feature)
+    EmbeddingService svc = null;
+    try {
+      Path modelPath = this.homeDir.resolve(".jolt/models/all-MiniLM-L6-v2.onnx");
+      if (Files.exists(modelPath)) {
+        svc = new EmbeddingService(modelPath);
+        log.info("Semantic search enabled (model: {})", modelPath.getFileName());
+      } else {
+        log.info("Embedding model not found at {} — semantic search disabled", modelPath);
+      }
+    } catch (Exception e) {
+      log.warn("Failed to load embedding model: {}", e.getMessage());
+    }
+    this.embedder = svc;
   }
 
-  /** Register all routes on the given Javalin app. */  
+  /** Register all routes on the given Javalin app. */
   public void register(Javalin app) {
 
-    // ─── Status ────────────────────────────────────────────── 
+    // --- Status ---
     app.get("/api/status", ctx -> {
       Map<String, Object> status = Map.of(
           "classesIndexed", symbolTable.size(),
@@ -45,7 +71,18 @@ public class ApiRoutes {
       ctx.json(status);
     });
 
-    // ─── Search ────────────────────────────────────────────── 
+    // --- Dashboard ---
+    app.get("/api/dashboard", ctx -> {
+      int classes = symbolTable.size();
+      int methods = 0;
+      for (var cs : symbolTable.allClassSymbols()) {
+        methods += cs.methods.size();
+      }
+      Map<String, Object> dash = dashboard.buildDashboard(classes, methods, classes);
+      ctx.json(dash);
+    });
+
+    // --- Search ---
     app.get("/api/search", ctx -> {
       String q = ctx.queryParam("q");
       if (q == null || q.isBlank()) { ctx.status(400).result("Missing 'q' parameter"); return; }
@@ -53,7 +90,7 @@ public class ApiRoutes {
       SymbolKind kindFilter = null;
       String kindStr = ctx.queryParam("kind");
       if (kindStr != null && !kindStr.isBlank()) {
-        try { kindFilter = SymbolKind.valueOf(kindStr.toUpperCase()); } 
+        try { kindFilter = SymbolKind.valueOf(kindStr.toUpperCase()); }
         catch (IllegalArgumentException e) { /* ignore invalid kind */ }
       }
 
@@ -72,31 +109,55 @@ public class ApiRoutes {
       ctx.json(hits);
     });
 
-    // ─── File Content ──────────────────────────────────────── 
+    // --- Semantic Search ---
+    app.get("/api/search/semantic", ctx -> {
+      String q = ctx.queryParam("q");
+      if (q == null || q.isBlank()) { ctx.status(400).result("Missing 'q' parameter"); return; }
+
+      if (embedder == null) {
+        ctx.status(503).json(Map.of(
+            "error", "Semantic search unavailable — embedding model not loaded",
+            "hint", "Place all-MiniLM-L6-v2.onnx in .jolt/models/"
+        ));
+        return;
+      }
+
+      int limit = 20;
+      try { limit = Integer.parseInt(ctx.queryParam("limit")); } catch (Exception ignored) {}
+
+      try {
+        float[] queryVec = embedder.embed(q);
+        List<SearchHit> hits = indexer.searchSemantic(queryVec, limit);
+        ctx.json(hits);
+      } catch (Exception e) {
+        log.error("Semantic search failed: {}", e.getMessage());
+        ctx.status(500).json(Map.of("error", e.getMessage()));
+      }
+    });
+
+    // --- File Content ---
     app.get("/api/file", ctx -> {
       String path = ctx.queryParam("path");
       if (path == null || path.isBlank()) { ctx.status(400).result("Missing 'path' parameter"); return; }
 
       Path filePath = homeDir.resolve(path).normalize();
 
-      // Security: ensure resolved path is still under homeDir  
       if (!filePath.startsWith(homeDir)) { ctx.status(403).result("Access denied"); return; }
 
       if (!Files.exists(filePath)) { ctx.status(404).result("File not found: " + path); return; }
 
       int startLine = 1;
       int endLine = Integer.MAX_VALUE;
-      String startStr = ctx.queryParam("start");  
-      if (startStr != null) { try { startLine = Math.max(1, Integer.parseInt(startStr)); } catch (NumberFormatException ignored) {} }  
-      String endStr = ctx.queryParam("end");  
-      if (endStr != null) { try { endLine = Integer.parseInt(endStr); } catch (NumberFormatException ignored) {} } 
+      String startStr = ctx.queryParam("start");
+      if (startStr != null) { try { startLine = Math.max(1, Integer.parseInt(startStr)); } catch (NumberFormatException ignored) {} }
+      String endStr = ctx.queryParam("end");
+      if (endStr != null) { try { endLine = Integer.parseInt(endStr); } catch (NumberFormatException ignored) {} }
 
       List<String> allLines = Files.readAllLines(filePath);
-      
-      // Apply line range
+
       int fromIdx = Math.min(startLine - 1, allLines.size());
       int toIdx = Math.min(endLine, allLines.size());
-      
+
       Map<String, Object> response = Map.of(
           "path", path,
           "totalLines", allLines.size(),
@@ -107,28 +168,28 @@ public class ApiRoutes {
       ctx.json(response);
     });
 
-    // ─── Go-to-Definition ──────────────────────────────────── 
+    // --- Go-to-Definition ---
     app.get("/api/definition", ctx -> {
       String symbol = ctx.queryParam("symbol");
       if (symbol == null || symbol.isBlank()) { ctx.status(400).result("Missing 'symbol' parameter"); return; }
 
-      var optCs = symbolTable.findDefinition(symbol);  
+      var optCs = symbolTable.findDefinition(symbol);
       if (optCs.isEmpty()) { ctx.status(404).json(Map.of("error", "Symbol not found: " + symbol)); return; }
 
       ClassSymbol cs = optCs.get();
-      
+
       List<Map<String, Object>> members = new java.util.ArrayList<>();
       for (var entry : cs.methods.entrySet()) {
         MethodSymbol ms = entry.getValue();
         members.add(Map.of(
-            "name", ms.name(), "kind", "METHOD", 
+            "name", ms.name(), "kind", "METHOD",
             "lineStart", ms.lineStart(), "signature", ms.signature()
         ));
       }
       for (var entry : cs.fields.entrySet()) {
         FieldSymbol fs = entry.getValue();
         members.add(Map.of(
-            "name", fs.name(), "kind", "FIELD", 
+            "name", fs.name(), "kind", "FIELD",
             "lineStart", fs.lineStart(), "type", fs.type()
         ));
       }
@@ -139,22 +200,22 @@ public class ApiRoutes {
           "filePath", cs.filePath,
           "lineStart", cs.lineStart,
           "superClass", cs.superClass != null ? cs.superClass : "",
-          "members", members  
+          "members", members
       );
 
       ctx.json(response);
     });
 
-    // ─── Class Hierarchy ───────────────────────────────────── 
+    // --- Class Hierarchy ---
     app.get("/api/hierarchy", ctx -> {
-      String cls = ctx.queryParam("class");  
+      String cls = ctx.queryParam("class");
       if (cls == null || cls.isBlank()) { ctx.status(400).result("Missing 'class' parameter"); return; }
 
-      var optCs = symbolTable.findDefinition(cls);  
+      var optCs = symbolTable.findDefinition(cls);
       if (optCs.isEmpty()) { ctx.status(404).json(Map.of("error", "Class not found: " + cls)); return; }
 
       ClassSymbol target = optCs.get();
-      
+
       List<String> superChain = symbolTable.getSuperChain(cls);
       List<ClassSymbol> subTypes = symbolTable.getSubTypes(cls);
 
@@ -162,13 +223,13 @@ public class ApiRoutes {
           "class", cls,
           "superClasses", superChain,
           "interfaces", target.interfaces,
-          "subTypes", subTypes.stream().map(cs -> cs.fqn).toList() 
+          "subTypes", subTypes.stream().map(cs -> cs.fqn).toList()
       );
 
       ctx.json(response);
     });
 
-    // ─── File Tree ──────────────────────────────────────────── 
+    // --- File Tree ---
     app.get("/api/file/tree", ctx -> {
       String path = ctx.queryParam("path");
       Path dirPath = homeDir.resolve(path != null ? path : "").normalize();
@@ -183,8 +244,8 @@ public class ApiRoutes {
         var entries = stream.sorted((a, b) -> {
           boolean aDir = Files.isDirectory(a);
           boolean bDir = Files.isDirectory(b);
-          if (aDir && !bDir) return -1;  
-          if (!aDir && bDir) return 1;   
+          if (aDir && !bDir) return -1;
+          if (!aDir && bDir) return 1;
           return a.getFileName().toString().compareToIgnoreCase(b.getFileName().toString());
         }).map(p -> Map.<String, Object>of(
             "name", p.getFileName().toString(),
@@ -199,9 +260,9 @@ public class ApiRoutes {
       }
     });
 
-    // ─── Find References ────────────────────────────────────── 
+    // --- Find References ---
     app.get("/api/references", ctx -> {
-      String symbol = ctx.queryParam("symbol");  
+      String symbol = ctx.queryParam("symbol");
       if (symbol == null || symbol.isBlank()) { ctx.status(400).result("Missing 'symbol' parameter"); return; }
 
       var refs = symbolTable.findReferences(symbol);
@@ -213,68 +274,323 @@ public class ApiRoutes {
       ctx.json(refList);
     });
 
-    // ─── Git Blume ──────────────────────────────────────────── 
-    app.get("/api/blame", ctx -> {      
-      String path = ctx.queryParam("path");    
-      if (path == null || path.isBlank()) { ctx.status(400).result("Missing 'path' parameter"); return; }  
+    // --- Call Graph ---
+    app.get("/api/call-graph", ctx -> {
+      String method = ctx.queryParam("method");
+      if (method == null || method.isBlank()) { ctx.status(400).result("Missing 'method' parameter"); return; }
 
-      int startLine = 1;    
-      int endLine = Integer.MAX_VALUE;     
-      String startStr = ctx.queryParam("start");   
-      if (startStr != null) { try { startLine = Math.max(1, Integer.parseInt(startStr)); } catch (NumberFormatException ignored) {} }   
-      String endStr = ctx.queryParam("end");     
-      if (endStr != null) { try { endLine = Integer.parseInt(endStr); } catch (NumberFormatException ignored) {} }    
+      int depth = 3; // default depth limit
+      try { depth = Integer.parseInt(ctx.queryParam("depth")); } catch (Exception ignored) {}
+      depth = Math.min(depth, 10); // cap at 10 to prevent runaway traversal
 
-      Path filePath = homeDir.resolve(path).normalize();  
-      if (!filePath.startsWith(homeDir)) { ctx.status(403).result("Access denied"); return; }  
-      if (!Files.exists(filePath)) { ctx.status(404).result("File not found: " + path); return; } 
+      List<CallEdge> edges = callGraph.traverse(method, depth);
 
-      try {        
-        List<BlameLine> lines = blameSvc.blame(path, startLine, endLine);       
-        ctx.json(lines);      
-   } catch (IOException e) {        
-     log.error("Blume failed for {}: {}", path, e.getMessage());       
-     ctx.status(500).json(Map.of("error", e.getMessage()));     
-   }    
-  }); 
+      List<Map<String, Object>> edgeList = edges.stream()
+          .map(e -> Map.<String, Object>of(
+              "caller", e.callerFqn(),
+              "callee", e.calleeName(),
+              "receiver", e.calleeReceiver(),
+              "line", e.line()
+          ))
+          .toList();
 
-    // ─── Feedback ────────────────────────────────────────────── 
-    app.post("/api/feedback", ctx -> {      
-      try {        
-        var body = ctx.bodyAsClass(Map.class);        
-        String page = (String) body.getOrDefault("page", "unknown");        
-        String file = (String) body.get("file");        
-        String message = (String) body.get("message");        
+      Map<String, Object> response = Map.of(
+          "method", method,
+          "depth", depth,
+          "edgeCount", edgeList.size(),
+          "edges", edgeList
+      );
 
-        if (message == null || message.isBlank()) {          
-          ctx.status(400).json(Map.of("error", "Message is required")); return;   
-       }      
+      ctx.json(response);
+    });
 
-        Map<String, Object> entry = feedback.record(page, file, message);  
-        ctx.status(201).json(entry);  
+    // --- Call Graph: Who Calls Me ---
+    app.get("/api/call-graph/callers", ctx -> {
+      String method = ctx.queryParam("method");
+      if (method == null || method.isBlank()) { ctx.status(400).result("Missing 'method' parameter"); return; }
 
-     } catch (Exception e) {       
-       log.error("Feedback write failed: {}", e.getMessage());       
-       ctx.status(500).json(Map.of("error", e.getMessage()));     
-   }    
-  }); 
+      // Extract just the method name (after # if present)
+      String methodName = method.contains("#") ? method.substring(method.indexOf('#') + 1) : method;
 
-  log.info("API routes registered");
+      Set<String> callers = callGraph.getCallers(methodName);
+
+      ctx.json(Map.of(
+          "method", method,
+          "callers", callers.stream().toList()
+      ));
+    });
+
+    // --- JSP Parse ---
+    app.get("/api/jsp/parse", ctx -> {
+      String path = ctx.queryParam("path");
+      if (path == null || path.isBlank()) { ctx.status(400).result("Missing 'path' parameter"); return; }
+
+      Path filePath = homeDir.resolve(path).normalize();
+      if (!filePath.startsWith(homeDir)) { ctx.status(403).result("Access denied"); return; }
+      if (!Files.exists(filePath)) { ctx.status(404).result("File not found: " + path); return; }
+
+      var jspParser = new com.jolt.parse.JspParser();
+      var result = jspParser.parse(filePath);
+
+      List<Map<String, Object>> elemList = result.elements().stream()
+          .map(e -> Map.<String, Object>of(
+              "type", e.type(), "content", e.content(), "line", e.line(), "name", e.name()
+          ))
+          .toList();
+
+      Map<String, Object> response = Map.of(
+          "path", path,
+          "elements", elemList,
+          "includedFiles", result.includedFiles(),
+          "tagLibUris", result.tagLibUris()
+      );
+
+      ctx.json(response);
+    });
+
+    // --- Spring XML Beans ---
+    app.get("/api/spring/beans", ctx -> {
+      String path = ctx.queryParam("path");
+      if (path == null || path.isBlank()) { ctx.status(400).result("Missing 'path' parameter"); return; }
+
+      Path filePath = homeDir.resolve(path).normalize();
+      if (!filePath.startsWith(homeDir)) { ctx.status(403).result("Access denied"); return; }
+      if (!Files.exists(filePath)) { ctx.status(404).result("File not found: " + path); return; }
+
+      var springParser = new com.jolt.parse.SpringXmlParser();
+      var config = springParser.parse(filePath);
+
+      List<Map<String, Object>> beanList = config.beans().stream()
+          .map(b -> Map.<String, Object>of(
+              "id", b.id(), "class", b.className(), "scope", b.scope(),
+              "dependsOn", b.dependsOn()
+          ))
+          .toList();
+
+      Map<String, Object> response = Map.of(
+          "path", path,
+          "beans", beanList,
+          "componentScanPaths", config.componentScanPaths(),
+          "imports", config.importedFiles()
+      );
+
+      ctx.json(response);
+    });
+
+    // --- Git Blame ---
+    app.get("/api/blame", ctx -> {
+      String path = ctx.queryParam("path");
+      if (path == null || path.isBlank()) { ctx.status(400).result("Missing 'path' parameter"); return; }
+
+      int startLine = 1;
+      int endLine = Integer.MAX_VALUE;
+      String startStr = ctx.queryParam("start");
+      if (startStr != null) { try { startLine = Math.max(1, Integer.parseInt(startStr)); } catch (NumberFormatException ignored) {} }
+      String endStr = ctx.queryParam("end");
+      if (endStr != null) { try { endLine = Integer.parseInt(endStr); } catch (NumberFormatException ignored) {} }
+
+      Path filePath = homeDir.resolve(path).normalize();
+      if (!filePath.startsWith(homeDir)) { ctx.status(403).result("Access denied"); return; }
+      if (!Files.exists(filePath)) { ctx.status(404).result("File not found: " + path); return; }
+
+      try {
+        List<BlameLine> lines = blameSvc.blame(path, startLine, endLine);
+        ctx.json(lines);
+      } catch (IOException e) {
+        log.error("Blame failed for {}: {}", path, e.getMessage());
+        ctx.status(500).json(Map.of("error", e.getMessage()));
+      }
+    });
+
+    // --- J2EE: web.xml ---
+    app.get("/api/j2ee/webxml", ctx -> {
+      var j2ee = new com.jolt.parse.J2eeService(homeDir);
+      Map<String, Object> result = j2ee.parseWebXml();
+      ctx.json(result);
+    });
+
+    // --- J2EE: persistence.xml ---
+    app.get("/api/j2ee/persistence", ctx -> {
+      var j2ee = new com.jolt.parse.J2eeService(homeDir);
+      Map<String, Object> result = j2ee.parsePersistenceXml();
+      ctx.json(result);
+    });
+
+    // --- J2EE: Annotations (EJB + DI) ---
+    app.get("/api/j2ee/annotations", ctx -> {
+      var j2ee = new com.jolt.parse.J2eeService(homeDir);
+      try {
+        List<Path> javaFiles = com.jolt.parse.FileWalker.findJavaFiles(homeDir);
+        Map<String, Object> result = j2ee.scanAnnotations(javaFiles);
+        ctx.json(result);
+      } catch (Exception e) {
+        ctx.status(500).json(Map.of("error", e.getMessage()));
+      }
+    });
+
+    // --- J2EE: Wiring Graph ---
+    app.get("/api/j2ee/wiring-graph", ctx -> {
+      var j2ee = new com.jolt.parse.J2eeService(homeDir);
+      try {
+        List<Path> javaFiles = com.jolt.parse.FileWalker.findJavaFiles(homeDir);
+        Map<String, List<String>> graph = j2ee.buildWiringGraph(javaFiles);
+
+        // Convert to list format for JSON serialization
+        List<Map<String, Object>> edges = new java.util.ArrayList<>();
+        for (var entry : graph.entrySet()) {
+          for (String dep : entry.getValue()) {
+            edges.add(Map.of("from", entry.getKey(), "to", dep));
+          }
+        }
+
+        ctx.json(Map.of(
+            "nodeCount", graph.size(),
+            "edgeCount", edges.size(),
+            "edges", edges
+        ));
+      } catch (Exception e) {
+        ctx.status(500).json(Map.of("error", e.getMessage()));
+      }
+    });
+
+    // --- Git Log ---
+    app.get("/api/git/log", ctx -> {
+      int count = 30;
+      try { count = Integer.parseInt(ctx.queryParam("count")); } catch (Exception ignored) {}
+
+      String author = ctx.queryParam("author");
+      String prefix = ctx.queryParam("prefix");
+
+      List<Map<String, Object>> commits = gitSvc.log(count, author, prefix);
+      ctx.json(commits);
+    });
+
+    // --- Git Diff (file list) ---
+    app.get("/api/git/diff", ctx -> {
+      String from = ctx.queryParam("from"); // optional — if null, diff commit vs parent
+      String to = ctx.queryParam("to");     // required — the commit to diff at
+
+      if (to == null || to.isBlank()) { ctx.status(400).result("Missing 'to' parameter"); return; }
+
+      List<Map<String, Object>> diffs = gitSvc.diff(from, to);
+      ctx.json(diffs);
+    });
+
+    // --- Git File Diff (content) ---
+    app.get("/api/git/file-diff", ctx -> {
+      String from = ctx.queryParam("from");
+      String to = ctx.queryParam("to");
+      String path = ctx.queryParam("path");
+
+      if (to == null || to.isBlank()) { ctx.status(400).result("Missing 'to' parameter"); return; }
+      if (path == null || path.isBlank()) { ctx.status(400).result("Missing 'path' parameter"); return; }
+
+      String diffContent = gitSvc.fileDiff(from, to, path);
+      ctx.json(Map.of("path", path, "diff", diffContent));
+    });
+
+    // --- Git Branches ---
+    app.get("/api/git/branches", ctx -> {
+      List<Map<String, Object>> branches = gitSvc.branches();
+      ctx.json(branches);
+    });
+
+    // --- Git Current Branch ---
+    app.get("/api/git/branch", ctx -> {
+      String branch = gitSvc.currentBranch();
+      ctx.json(Map.of("branch", branch));
+    });
+
+    // --- Git Commit Detail ---
+    app.get("/api/git/commit", ctx -> {
+      String hash = ctx.queryParam("hash");
+      if (hash == null || hash.isBlank()) { ctx.status(400).result("Missing 'hash' parameter"); return; }
+
+      Map<String, Object> detail = gitSvc.commitDetail(hash);
+      ctx.json(detail);
+    });
+
+    // --- Bookmarks ---
+    var bookmarksSvc = new BookmarksService(homeDir);
+
+    app.get("/api/bookmarks", ctx -> {
+      ctx.json(bookmarksSvc.getBookmarks());
+    });
+
+    app.post("/api/bookmarks", ctx -> {
+      try {
+        var body = ctx.bodyAsClass(Map.class);
+        String path = (String) body.get("path");
+        int line = ((Number) body.getOrDefault("line", 0)).intValue();
+        String label = (String) body.get("label");
+
+        if (path == null || path.isBlank()) { ctx.status(400).result("Missing 'path'"); return; }
+
+        Map<String, Object> bm = bookmarksSvc.addBookmark(path, line, label);
+        ctx.status(201).json(bm);
+      } catch (Exception e) {
+        ctx.status(500).json(Map.of("error", e.getMessage()));
+      }
+    });
+
+    app.delete("/api/bookmarks", ctx -> {
+      String path = ctx.queryParam("path");
+      int line = 0;
+      try { line = Integer.parseInt(ctx.queryParam("line")); } catch (Exception ignored) {}
+
+      if (path == null) { ctx.status(400).result("Missing 'path'"); return; }
+
+      boolean removed = bookmarksSvc.removeBookmark(path, line);
+      if (removed) { ctx.json(Map.of("ok", true)); }
+      else { ctx.status(404).json(Map.of("ok", false)); }
+    });
+
+    // --- Recent Files ---
+    app.get("/api/recent", ctx -> {
+      ctx.json(bookmarksSvc.getRecentFiles());
+    });
+
+    // --- Search History ---
+    app.get("/api/search/history", ctx -> {
+      ctx.json(bookmarksSvc.getSearchHistory());
+    });
+
+    // --- Feedback ---
+    app.post("/api/feedback", ctx -> {
+      try {
+        var body = ctx.bodyAsClass(Map.class);
+        String page = (String) body.getOrDefault("page", "unknown");
+        String file = (String) body.get("file");
+        String message = (String) body.get("message");
+
+        if (message == null || message.isBlank()) {
+          ctx.status(400).json(Map.of("error", "Message is required")); return;
+        }
+
+        Map<String, Object> entry = feedback.record(page, file, message);
+        ctx.status(201).json(entry);
+
+      } catch (Exception e) {
+        log.error("Feedback write failed: {}", e.getMessage());
+        ctx.status(500).json(Map.of("error", e.getMessage()));
+      }
+    });
+
+    log.info("API routes registered");
   }
 
   private static String detectLanguage(String path) {
     if (path.endsWith(".java")) return "java";
-    if (path.endsWith(".xml")) return "xml";  
-    if (path.endsWith(".jsp")) return "jsp";  
-    if (path.endsWith(".sql")) return "sql";  
-    if (path.endsWith(".yml") || path.endsWith(".yaml")) return "yaml";  
-    if (path.endsWith(".properties")) return "properties";  
-    if (path.endsWith(".sh") || path.endsWith(".bash")) return "shell";  
-    if (path.endsWith(".kt") || path.endsWith(".kts")) return "kotlin";  
-    if (path.endsWith(".groovy") || path.endsWith(".gvy")) return "groovy";  
-    if (path.endsWith(".md")) return "markdown";  
+    if (path.endsWith(".xml")) return "xml";
+    if (path.endsWith(".jsp")) return "jsp";
+    if (path.endsWith(".sql")) return "sql";
+    if (path.endsWith(".yml") || path.endsWith(".yaml")) return "yaml";
+    if (path.endsWith(".properties")) return "properties";
+    if (path.endsWith(".sh") || path.endsWith(".bash")) return "shell";
+    if (path.endsWith(".kt") || path.endsWith(".kts")) return "kotlin";
+    if (path.endsWith(".groovy") || path.endsWith(".gvy")) return "groovy";
+    if (path.endsWith(".md")) return "markdown";
     return "";
   }
 
 }
-
