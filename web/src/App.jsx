@@ -21,7 +21,8 @@ export default function App() {
   // Phase 2-3 panels  
   const [showGitLog, setShowGitLog] = useState(false);  
   const [callGraphMethod, setCallGraphMethod] = useState(null);  
-  const [diffState, setDiffState] = useState(null); // {commitHash, filePath}  
+   const [diffState, setDiffState] = useState(null); // {commitHash, filePath}
+  const [selectedCommit, setSelectedCommit] = useState(null); // {hash, files}
 
   // Load status on mount  
   useEffect(() => {    
@@ -112,6 +113,18 @@ export default function App() {
     await openFile(hit.filePath);  
   };  
 
+   const handleCommitSelect = async (hash) => {
+    setDiffState(null); // clear any previous diff
+    try {
+      const detail = await api.getCommitDetail(hash);
+      setSelectedCommit({ hash, files: detail.files || [] });
+    } catch (e) { console.error(e); setSelectedCommit(null); }
+  };
+
+  const handleFileClick = (filePath) => {
+    if (selectedCommit) setDiffState({ commitHash: selectedCommit.hash, filePath });
+  };
+
   const activePath = tabs.find(t => t.id === activeTabId)?.path || '';
 
   return (  
@@ -158,10 +171,24 @@ export default function App() {
               </div>
             )}
 
-            {/* Phase 3: Git Log panel */}
+             {/* Phase 3: Git Log panel */}
             {showGitLog && (
               <div style={{ width: '300px', borderLeft: '1px solid #313244' }}>
-                <GitLogPanel onSelectCommit={(hash) => { /* could open diff */ }} />
+                <GitLogPanel onSelectCommit={handleCommitSelect} />
+              </div>
+            )}
+
+            {/* Commit file list */}
+            {selectedCommit && selectedCommit.files.length > 0 && !diffState && (
+              <div style={{ width: '220px', borderLeft: '1px solid #313244', overflowY: 'auto' }}>
+                <div style={{ padding: '8px 12px', borderBottom: '1px solid #313244', fontSize: '0.75rem', color: '#a6adc8' }}>
+                  Files ({selectedCommit.files.length})
+                </div>
+                {selectedCommit.files.map(f => (
+                  <div key={f.path} onClick={() => handleFileClick(f.path)} style={{ padding: '6px 12px', cursor: 'pointer', fontSize: '0.8rem', color: '#cdd6f4' }} className="hover:bg-gray-800">
+                    {f.status === 'A' ? '+' : f.status === 'D' ? '-' : '~'} {f.path.split('/').pop()}
+                  </div>
+                ))}
               </div>
             )}
 

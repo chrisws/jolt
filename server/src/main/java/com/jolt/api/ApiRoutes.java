@@ -32,6 +32,8 @@ public class ApiRoutes {
   private final EmbeddingService embedder; // nullable — null if model file missing
   private final CallGraph callGraph;
   private final GitService gitSvc;
+  private final SettingsService settingsSvc;
+  private final KeybindingsService keybindingsSvc;
 
   public ApiRoutes(SymbolTable symbolTable, LuceneIndexer indexer, Path homeDir, CallGraph callGraph) {
     this.symbolTable = symbolTable;
@@ -42,6 +44,8 @@ public class ApiRoutes {
     this.dashboard = new DashboardService(this.homeDir);
     this.callGraph = callGraph;
     this.gitSvc = new GitService(this.homeDir);
+    this.settingsSvc = new SettingsService(this.homeDir);
+    this.keybindingsSvc = new KeybindingsService();
 
     // Try to load the ONNX embedding model (optional feature)
     EmbeddingService svc = null;
@@ -574,6 +578,43 @@ public class ApiRoutes {
         log.error("Feedback write failed: {}", e.getMessage());
         ctx.status(500).json(Map.of("error", e.getMessage()));
       }
+    });
+
+
+    // --- Settings ---
+    app.get("/api/settings", ctx -> {
+      ctx.json(settingsSvc.getSettings());
+    });
+
+    app.put("/api/settings", ctx -> {
+      try {
+        @SuppressWarnings("unchecked")
+        Map<String, Object> body = ctx.bodyAsClass(Map.class);
+        Map<String, Object> updated = settingsSvc.updateSettings(body);
+        ctx.json(updated);
+      } catch (Exception e) {
+        log.error("Settings update failed: {}", e.getMessage());
+        ctx.status(500).json(Map.of("error", e.getMessage()));
+      }
+    });
+
+    // --- Keybindings ---
+    app.get("/api/keybindings", ctx -> {
+      String mode = ctx.queryParam("mode");
+      if (mode == null || mode.isBlank()) { mode = "default"; }
+
+      Map<String, Object> result = keybindingsSvc.getKeybindings(mode);
+
+      // Check for error response (unknown mode)
+      if (result.containsKey("error")) {
+        ctx.status(400).json(result);
+        return;
+      }
+
+      // Include available modes for convenience
+      Map<String, Object> response = new java.util.LinkedHashMap<>(result);
+      response.put("availableModes", keybindingsSvc.availableModes());
+      ctx.json(response);
     });
 
     log.info("API routes registered");

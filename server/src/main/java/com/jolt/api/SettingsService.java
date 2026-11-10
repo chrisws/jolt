@@ -1,0 +1,136 @@
+package com.jolt.api;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.LinkedHashMap;
+import java.util.Map;
+
+/**
+ * Manages per-user settings stored in {@code .jolt/settings.json}.
+ * Thread-safe via synchronized access on a single file.
+ */
+public class SettingsService {
+
+  private static final Logger log = LoggerFactory.getLogger(SettingsService.class);
+  private static final ObjectMapper mapper = new ObjectMapper();
+
+  private final Path settingsFile;
+
+  public SettingsService(Path homeDir) {
+    this.settingsFile = homeDir.resolve(".jolt/settings.json");
+  }
+
+  /** Get all current settings as a map. Returns defaults if file doesn't exist. */
+  public Map<String, Object> getSettings() {
+    Map<String, Object> defaults = defaultSettings();
+    try {
+    if (!Files.exists(settingsFile)) {
+        return defaults;
+      }
+
+      JsonNode root = mapper.readTree(settingsFile.toFile());
+      Map<String, Object> result = new LinkedHashMap<>(defaults);
+
+      // Overlay stored values on top of defaults
+      for (var entry : root.properties()) {
+        result.put(entry.getKey(), jsonNodeToObj(entry.getValue()));
+      }
+
+      return result;
+
+    } catch (Exception e) {
+      log.warn("Failed to read settings: {}", e.getMessage());
+      return defaults;
+    }
+  }
+
+  /** Update one or more settings. Returns the full updated settings map. */
+  public Map<String, Object> updateSettings(Map<String, Object> updates) {
+    Map<String, Object> current = getSettings();
+
+    for (Map.Entry<String, Object> entry : updates.entrySet()) {
+      // Only allow known keys to prevent injection of arbitrary data
+      if (current.containsKey(entry.getKey()) || isKnownKey(entry.getKey())) {
+        current.put(entry.getKey(), entry.getValue());
+      }
+    }
+
+    writeSettings(current);
+    return current;
+  }
+
+  /** Get a single setting value, or null if not set. */
+  public Object getSetting(String key) {
+    return getSettings().get(key);
+  }
+
+  // ─── Private ────────────────────────────────────────────────────
+
+  private Map<String, Object> defaultSettings() {
+    Map<String, Object> defaults = new LinkedHashMap<>();
+    defaults.put("keybindingMode", "default");   // "default" | "emacs" | "vim"
+    defaults.put("theme", "dark");               // "dark" | "light" | "custom"
+    defaults.put("fontSize", 14);                // editor font size in px
+    defaults.put("tabSize", 2);                  // spaces per tab
+    defaults.put("wordWrap", false);             // enable word wrap in editor
+    defaults.put("showLineNumbers", true);       // show line numbers gutter
+    defaults.put("minimapEnabled", true);        // show minimap in editor
+    defaults.put("gitAutoRefresh", true);        // auto-refresh git panel on change
+    return defaults;
+  }
+
+  private boolean isKnownKey(String key) {
+    return switch (key) {
+      case "keybindingMode", "theme", "fontSize", "tabSize",
+           "wordWrap", "showLineNumbers", "minimapEnabled",
+           "gitAutoRefresh" -> true;
+      default -> false;
+    };
+  }
+
+  private void writeSettings(Map<String, Object> settings) {
+    try {
+      Files.createDirectories(settingsFile.getParent());
+
+      ObjectNode node = mapper.createObjectNode();
+      for (Map.Entry<String, Object> entry : settings.entrySet()) {
+        setJsonField(node, entry.getKey(), entry.getValue());
+      }
+
+      mapper.writerWithDefaultPrettyPrinter().writeValue(settingsFile.toFile(), node);
+
+    } catch (Exception e) {
+      log.error("Failed to write settings: {}", e.getMessage());
+    }
+  }
+
+  private void setJsonField(ObjectNode node, String key, Object value) {
+    if (value instanceof String s) {
+      node.put(key, s);
+    } else if (value instanceof Integer i) {
+      node.put(key, i);
+    } else if (value instanceof Boolean b) {
+      node.put(key, b);
+    } else if (value instanceof Number n) {
+      node.put(key, n.doubleValue());
+    } else {
+      node.put(key, String.valueOf(value));
+    }
+  }
+
+  private Object jsonNodeToObj(JsonNode node) {
+    if (node.isTextual()) return node.asText();
+    if (node.isInt()) return node.asInt();
+    if (node.isLong()) return node.asLong();
+    if (node.isBoolean()) return node.asBoolean();
+    if (node.isDouble()) return node.asDouble();
+    return node.toString();
+  }
+
+}
