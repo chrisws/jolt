@@ -1,24 +1,30 @@
 package com.jolt.parse;
 
-import java.io.IOException;  
-import java.nio.file.*;  
-import java.nio.file.attribute.BasicFileAttributes;  
-import java.util.ArrayList;  
-import java.util.List;  
+import java.io.IOException;
+import java.nio.file.*;
+import java.nio.file.attribute.BasicFileAttributes;
+import java.util.ArrayList;
+import java.util.List;
 
-public final class FileWalker {  
-  private static final List<String> SKIP = List.of("node_modules", ".git", "target", "build", "dist");  
+public final class FileWalker {
+  private static final List<String> SKIP = List.of("node_modules", ".git", "target", "build", "dist");
 
-  public static List<Path> findJavaFiles(Path root) throws IOException {  
-    return walk(root, p -> p.toString().endsWith(".java"));  
-  }  
+  public static List<Path> findJavaFiles(Path root) throws IOException {
+    return walk(root, p -> p.toString().endsWith(".java"));
+  }
 
-  public static List<Path> findNonJavaSourceFiles(Path root) throws IOException {  
-    var exts = List.of(".xml", ".jsp", ".properties", ".yml", ".yaml", ".sql");  
-    return walk(root, p -> { for (var x : exts) if (p.toString().endsWith(x)) return true; return false; });  
-  }  
+  public static List<Path> findNonJavaSourceFiles(Path root) throws IOException {
+    var exts = List.of(".xml", ".jsp", ".properties", ".yml", ".yaml", ".sql");
+    return walk(root, p -> { for (var x : exts) if (p.toString().endsWith(x)) return true; return false; });
+  }
 
-  private static List<Path> walk(Path r, java.util.function.Predicate<Path> f) throws IOException {  
+  /** Find C/C++ source and header files. */
+  public static List<Path> findCppFiles(Path root) throws IOException {
+    var exts = List.of(".cpp", ".cc", ".cxx", ".c", ".h", ".hpp", ".hh");
+    return walk(root, p -> { for (var x : exts) if (p.toString().endsWith(x)) return true; return false; });
+  }
+
+  private static List<Path> walk(Path r, java.util.function.Predicate<Path> f) throws IOException {
     var o = new ArrayList<Path>();
     Files.walkFileTree(r, new SimpleFileVisitor<>() {
       @Override
@@ -38,12 +44,11 @@ public final class FileWalker {
 
       @Override
       public FileVisitResult visitFileFailed(Path file, IOException exc) {
-        // Skip unreadable files gracefully  
-        return FileVisitResult.CONTINUE;  
-      }  
-    }); 
-    return o;  
-  } 
+        // Skip unreadable files gracefully
+        return FileVisitResult.CONTINUE;
+      }
+    });
+    return o;
+  }
 
 }
-

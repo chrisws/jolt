@@ -7,6 +7,8 @@ package com.jolt;
  import com.jolt.model.ClassSymbol;
  import com.jolt.nav.CallGraph;
  import com.jolt.nav.SymbolTable;
+ import com.jolt.parse.CompileDb;
+ import com.jolt.parse.CppParser;
  import com.jolt.parse.FileWalker;
  import com.jolt.parse.JavaParser;
  import com.jolt.watch.FileChangeEvent;
@@ -69,6 +71,41 @@ package com.jolt;
            log.info("Indexed {}/{} files", i + 1, javaFiles.size());
          }
        } 
+
+       // ─── C++ indexing (if compile_commands.json is available) ───
+       int cppCount = 0;
+       Path cmakeFile = homeDir.resolve("CMakeLists.txt");
+       if (Files.exists(cmakeFile)) {
+         CompileDb compileDb = CompileDb.loadFromProject(homeDir);
+         if (!compileDb.isEmpty()) {
+           List<Path> cppFiles = FileWalker.findCppFiles(homeDir);
+           log.info("Found {} C/C++ files under {}", cppFiles.size(), homeDir);
+
+           CppParser cppParser = new CppParser(compileDb);
+
+           for (Path file : cppFiles) {
+             List<ClassSymbol> symbols = cppParser.parse(file);
+             for (ClassSymbol cs : symbols) {
+               allSymbols.add(cs);
+               indexer.indexClass(cs);
+               cppCount++;
+             }
+
+             // Also index raw text for full-text search fallback
+             String relPath = homeDir.relativize(file).toString();
+             try {
+               String content = Files.readString(file);
+               indexer.indexFile(relPath, content);
+             } catch (Exception e) {
+               log.debug("Skipping raw index for {}: {}", relPath, e.getMessage());
+             }
+           }
+
+           log.info("Indexed {} C/C++ symbols", cppCount);
+         } else {
+           log.info("CMake project detected but no compile_commands.json — skipping C++ indexing");
+         }
+       }
 
        symbolTable.addAll(allSymbols);
        indexer.commit();
