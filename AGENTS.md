@@ -59,9 +59,9 @@ jolt/
 │   │   ├── git/               # JGit service, agent tracking, diffs
 │   │   ├── model/             # Domain objects (ClassSymbol, MethodSymbol, etc.)
 │   │   └── watch/             # File watcher, .jolt/ directory management
+│   │   └── watch/             # File watcher, .jolt/ directory management
+│   ├── src/test               # Server test suites
 │   └── pom.xml                # maven-shade-plugin → target/jolt.jar
-├── web/                       # Plain ES6 frontend with vendored JS libs (embedded in JAR)
-├── tests/                     # Server and web test suites
 └── plans/java-code-explorer.md  # Full technical plan
 ```
 
