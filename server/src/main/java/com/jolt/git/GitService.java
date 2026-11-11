@@ -192,6 +192,14 @@ public class GitService {
     }
   }
 
+  /** Checkout a branch by name. Returns the new current branch name, or throws. */
+  public String checkoutBranch(String name) throws Exception {
+    try (Git git = Git.open(homeDir.toFile())) {
+      git.checkout().setName(name).call();
+      return git.getRepository().getBranch();
+    }
+  }
+
   /** Get commit detail (message, author, files changed). */
   public Map<String, Object> commitDetail(String hash) {
     try (Git git = Git.open(homeDir.toFile())) {

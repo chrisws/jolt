@@ -38,17 +38,17 @@ shift
 
 case "$CMD" in
   build)   build_server ;;
-  run)     exec java ${JAVA_OPTS} -jar "$JAR" "$@" ;;
+  run)     java ${JAVA_OPTS} -jar "$JAR" "$@" 2>&1 | tee jolt.log ;;
   dev)     # Start Javalin in background, then Python HMR dev server in foreground
-           mvn -f server/pom.xml compile exec:java -Dexec.args="$@" -q &
+           mvn -f server/pom.xml compile exec:java -Dexec.mainClass=com.jolt.JoltApp -Dexec.args="$@" -q &
            JAVLIN_PID=$!
-           trap "kill $JAVLIN_PID 2>/dev/null" EXIT
+           trap "kill $JAVLIN_PID 2>/dev/null; wait $JAVLIN_PID 2>/dev/null" INT TERM EXIT
            # Wait for Javalin to be ready (poll /api/status)
            for i in $(seq 1 30); do
              if curl -s "http://localhost:9000/api/status" >/dev/null 2>&1; then break; fi
              sleep 1
            done
-           exec python3 dev_server.py --javalin-port 9000 "$@" ;;
+           python3 dev_server.py --javalin-port 9000 "$@" ;;
   index)   exec java ${JAVA_OPTS} -jar "$JAR" --reindex "$@" ;;
   *)       echo "Unknown command: $CMD" >&2; usage; exit 1 ;;
 esac

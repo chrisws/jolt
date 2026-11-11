@@ -3,20 +3,34 @@ const $searchPanel    = document.getElementById('search-panel');
 const $searchRes      = document.getElementById('search-results');
 const $suggestDD      = document.getElementById('suggest-dropdown');
 const $semanticToggle = document.getElementById('semantic-toggle');
+const $caseToggle     = document.getElementById('case-toggle');
+const $wordToggle     = document.getElementById('word-toggle');
 
 let searchTimer     = null;
 let suggestItems    = [];   // flat list of {hit, el} for keyboard nav
 let suggestActive   = -1;   // index of highlighted item (-1 = none)
 let semanticMode    = false; // true → use /api/search/semantic
+let caseSensitive   = false; // true → case-sensitive matching
+let wholeWord       = false; // true → whole-word matching
 
 function esc(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+
+function buildSearchUrl(query) {
+  let url;
+  if (semanticMode) {
+    url = '/api/search/semantic?q=' + encodeURIComponent(query);
+  } else {
+    url = '/api/search?q=' + encodeURIComponent(query);
+  }
+  if (caseSensitive) url += '&cs=1';
+  if (wholeWord) url += '&ww=1';
+  return url;
+}
 
 async function doSearch(query) {
   if (!query || query.length < 2) return;
   try {
-    const url = semanticMode
-      ? '/api/search/semantic?q=' + encodeURIComponent(query)
-      : '/api/search?q=' + encodeURIComponent(query);
+    const url = buildSearchUrl(query);
     const res = await fetch(url);
 
     // Graceful 503 fallback — embedding model not loaded
@@ -117,6 +131,16 @@ export function initSearch() {
   $semanticToggle.addEventListener('click', () => {
     semanticMode = !semanticMode;
     $semanticToggle.classList.toggle('active', semanticMode);
+  });
+
+  $caseToggle.addEventListener('click', () => {
+    caseSensitive = !caseSensitive;
+    $caseToggle.classList.toggle('active', caseSensitive);
+  });
+
+  $wordToggle.addEventListener('click', () => {
+    wholeWord = !wholeWord;
+    $wordToggle.classList.toggle('active', wholeWord);
   });
 
   $searchInput.addEventListener('input', () => {

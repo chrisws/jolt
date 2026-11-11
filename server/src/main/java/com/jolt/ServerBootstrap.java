@@ -119,7 +119,7 @@ package com.jolt;
     fileWatcher.start();  
 
     app.start(port); 
-    log.info("Jolt server listening on http://{}:{}/api/status", host, port);
+    log.info("Jolt server listening on http://{}:{}/", host, port);
 
     // Register shutdown hook to close resources cleanly when JVM exits  
     Runtime.getRuntime().addShutdownHook(new Thread(() -> {

@@ -10,6 +10,7 @@ export async function loadFile(path) {
     const data = await res.json();
     renderCode(data.content, data.language);
     renderBreadcrumb(path);
+    $viewer.focus();
   } catch (err) {
     $viewer.innerHTML = '<div class="empty-state"><span>Failed: ' + esc(err.message) + '</span></div>';
   }
@@ -40,10 +41,14 @@ export function renderBreadcrumb(path) {
   parts.forEach((part, i) => {
     if (i > 0) html += '<span class="sep">/</span>';
     const sub = parts.slice(0, i + 1).join('/');
-    html += '<span data-path="' + esc(sub) + '">' + esc(part) + '</span>';
+    // Only file-like segments (contain a dot) are clickable
+    const isFile = part.includes('.');
+    html += isFile
+      ? '<span data-path="' + esc(sub) + '" class="crumb-file">' + esc(part) + '</span>'
+      : '<span class="crumb-dir">' + esc(part) + '</span>';
   });
   $crumb.innerHTML = html;
-  $crumb.querySelectorAll('span[data-path]').forEach(el => {
+  $crumb.querySelectorAll('span.crumb-file').forEach(el => {
     el.addEventListener('click', () => { if (el.dataset.path !== path) import('./tabs.js').then(m => m.openTab(el.dataset.path)); });
   });
 }
@@ -84,6 +89,19 @@ export async function toggleBlame(filePath) {
 
 function removeBlameGutter() {
   $viewer.querySelectorAll('.blame-info').forEach(el => el.remove());
+}
+
+/* ── Go to Line ──────────────────────────────────── */
+
+export function gotoLine(n) {
+  const el = $viewer.querySelector('.code-line[data-line="' + n + '"]');
+  if (!el) return;
+
+  el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+
+  // Flash highlight
+  el.classList.add('line-flash');
+  setTimeout(() => el.classList.remove('line-flash'), 1200);
 }
 
 export function initFileViewer() {

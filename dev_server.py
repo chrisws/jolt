@@ -103,7 +103,7 @@ class DevServer:
 
     # ── API proxy → Javalin ────────────────────────────
 
-    async def handle_proxy(self, request: web.Request) -> web.StreamingResponse:
+    async def handle_proxy(self, request: web.Request) -> web.StreamResponse:
         path = request.rel_url.path
         qs = request.rel_url.query_string
         url = f"http://localhost:{self.javalin_port}{path}" + (f"?{qs}" if qs else "")

@@ -1,10 +1,13 @@
-const $settingsPanel = document.getElementById('settings-panel');
+ const $settingsPanel = document.getElementById('settings-panel');
 const $settingsBtn   = document.getElementById('settings-btn');
 const $settingsClose = document.getElementById('settings-close');
 const $settingsSave  = document.getElementById('settings-save');
 const $settingsMsg   = document.getElementById('settings-saved-msg');
+const $modelSelect   = document.getElementById('set-model-select');
+const $modelLoadBtn  = document.getElementById('model-load-btn');
+const $modelStatus   = document.getElementById('model-status');
 
-export function openSettings() { loadSettings(); $settingsPanel.classList.add('open'); }
+export function openSettings() { loadSettings(); loadModels(); $settingsPanel.classList.add('open'); }
 export function closeSettings() { $settingsPanel.classList.remove('open'); }
 
 async function loadSettings() {
@@ -16,6 +19,7 @@ async function loadSettings() {
     document.getElementById('set-suggest-limit').value  = s['search.suggest.limit'] ?? 10;
     document.getElementById('set-diff-maxlines').value  = s['git.diff.maxLines'] ?? 1000;
     document.getElementById('set-diff-view').value      = s['git.diff.defaultView'] ?? 'unified';
+    document.getElementById('set-keybindings-mode').value = s['keybindings.mode'] ?? 'default';
 
     $settingsMsg.textContent = '';
   } catch (err) { console.error('Settings load failed:', err); }
@@ -26,7 +30,8 @@ async function saveSettings() {
     'search.fuzzy.maxEdits': parseInt(document.getElementById('set-fuzzy-edits').value, 10) || 2,
     'search.suggest.limit':  parseInt(document.getElementById('set-suggest-limit').value, 10) || 10,
     'git.diff.maxLines':     parseInt(document.getElementById('set-diff-maxlines').value, 10) || 1000,
-    'git.diff.defaultView':  document.getElementById('set-diff-view').value || 'unified'
+    'git.diff.defaultView':  document.getElementById('set-diff-view').value || 'unified',
+    'keybindings.mode':      document.getElementById('set-keybindings-mode').value || 'default'
   };
 
   try {
@@ -41,8 +46,64 @@ async function saveSettings() {
   } catch (err) { console.error('Settings save failed:', err); $settingsMsg.textContent = ''; }
 }
 
+ async function loadModels() {
+  try {
+    const res = await fetch('/api/models');
+    const models = await res.json();
+
+    // Preserve current selection if still available
+    const current = $modelSelect.value;
+    $modelSelect.innerHTML = '<option value="">— none —</option>';
+
+    for (const m of models) {
+      const opt = document.createElement('option');
+      opt.value = m;
+      opt.textContent = m;
+      $modelSelect.appendChild(opt);
+    }
+
+    if (current && models.includes(current)) {
+      $modelSelect.value = current;
+    }
+
+    $modelStatus.textContent = '';
+  } catch (err) { console.error('Model list load failed:', err); }
+}
+
+async function loadModel() {
+  const model = $modelSelect.value;
+  if (!model) { $modelStatus.textContent = 'No model selected'; return; }
+
+  $modelLoadBtn.disabled = true;
+  $modelStatus.textContent = 'Loading…';
+
+  try {
+    const res = await fetch('/api/models/select', {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain' },
+      body: model
+    });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+
+    if (data.reindexing) {
+      $modelStatus.textContent = 'Loaded — re-indexing…';
+    } else {
+      $modelStatus.textContent = 'Loaded ✓';
+    }
+
+    setTimeout(() => { $modelStatus.textContent = ''; }, 5000);
+  } catch (err) {
+    console.error('Model load failed:', err);
+    $modelStatus.textContent = 'Failed: ' + err.message;
+  } finally {
+    $modelLoadBtn.disabled = false;
+  }
+}
+
 export function initSettings() {
   $settingsBtn.addEventListener('click', openSettings);
   $settingsClose.addEventListener('click', closeSettings);
   $settingsSave.addEventListener('click', saveSettings);
+  $modelLoadBtn.addEventListener('click', loadModel);
 }

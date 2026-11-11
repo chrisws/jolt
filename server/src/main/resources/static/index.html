@@ -13,8 +13,15 @@
     <!-- Top bar -->
     <header class="topbar">
       <span class="logo">Jolt</span>
+      <div class="branch-selector" id="branch-selector" title="Current branch — click to switch">
+        <span class="branch-icon">&#x2387;</span>
+        <span class="branch-name" id="branch-name">…</span>
+        <div class="branch-dropdown" id="branch-dropdown" role="listbox"></div>
+      </div>
       <div class="search-box">
         <input type="text" id="search-input" placeholder="Search code…  (Ctrl+Shift+F)" autocomplete="off">
+        <button class="search-toggle" id="case-toggle" title="Case sensitive (Aa)" aria-label="Toggle case sensitive search">Aa</button>
+        <button class="search-toggle" id="word-toggle" title="Whole word (W)" aria-label="Toggle whole word search">W</button>
         <button class="semantic-toggle" id="semantic-toggle" title="Toggle semantic search" aria-label="Toggle semantic search">&#x2728;</button>
         <div class="suggest-dropdown" id="suggest-dropdown" role="listbox"></div>
       </div>
@@ -44,7 +51,7 @@
       </nav>
 
     </div>
-
+<!-- Resizable divider --><div class="divider" id="sidebar-divider"></div>
     <!-- Main: tabs + breadcrumb + code viewer -->
     <main class="main">
 
@@ -59,7 +66,7 @@
       </div>
 
       <!-- Code viewer -->
-      <div class="code-viewer" id="code-viewer">
+      <div class="code-viewer" id="code-viewer" tabindex="0">
         <div class="welcome">
           <div class="mascot" aria-hidden="true">
             <svg viewBox="0 0 120 170" width="120" height="170" xmlns="http://www.w3.org/2000/svg">
@@ -99,7 +106,7 @@
           <div class="welcome-hints">
             <div class="hint-item"><span class="hint-icon">&#x2022;</span><span>Search code with <kbd>Ctrl+Shift+F</kbd></span></div>
             <div class="hint-item"><span class="hint-icon">&#x2022;</span><span>Click files in the tree to open tabs</span></div>
-            <div class="hint-item git-hint"><span class="hint-icon">&#x2022;</span><span>This project is tracked with Git. View commit history, diffs &amp; contributor stats <a href="/git" class="git-link">&rarr;</a></span></div>
+            <div class="hint-item git-hint"><span class="hint-icon">&#x2022;</span><span>This project is tracked with Git. View commit history, diffs &amp; contributor stats <a href="#/git" class="git-link">&rarr; Git</a></span></div>
           </div>
         </div>
       </div>
@@ -156,6 +163,32 @@
       </div>
     </div>
 
+    <div class="settings-section">
+      <h3>Keybindings</h3>
+      <div class="setting-row">
+        <label for="set-keybindings-mode">Keyboard map</label>
+        <select id="set-keybindings-mode">
+          <option value="default">Default (IntelliJ)</option>
+          <option value="emacs">Emacs</option>
+          <option value="vim">Vim</option>
+        </select>
+      </div>
+     </div>
+
+    <div class="settings-section">
+      <h3>Embedding Model</h3>
+      <div class="setting-row">
+        <label for="set-model-select">Model</label>
+        <select id="set-model-select">
+          <option value="">— none —</option>
+        </select>
+      </div>
+      <div class="setting-row">
+        <button id="model-load-btn" class="settings-save-btn" style="width:auto;padding:4px 12px;">Load &amp; Re-index</button>
+        <span id="model-status" class="model-status-text"></span>
+      </div>
+    </div>
+
     <button class="settings-save-btn" id="settings-save">Save Settings</button>
     <div class="settings-saved-msg" id="settings-saved-msg"></div>
   </aside>
@@ -182,7 +215,6 @@
     <div class="modal-content">
       <div class="panel-header">
         <strong>Report an Issue</strong>
-        <button id="feedback-close" aria-label="Close">&times;</button>
       </div>
       <form id="feedback-form">
         <div class="setting-row">
@@ -197,7 +229,10 @@
           <label for="fb-message">Message</label>
           <textarea id="fb-message" rows="4" placeholder="Describe the issue…"></textarea>
         </div>
-        <button type="submit" class="settings-save-btn">Submit</button>
+        <div class="modal-actions">
+          <button type="button" class="modal-cancel-btn" id="feedback-close">Cancel</button>
+          <button type="submit" class="settings-save-btn">Submit</button>
+        </div>
       </form>
       <div id="fb-status"></div>
     </div>

@@ -30,6 +30,8 @@ export function openTab(path) {
 export function activateTab(id) {
   state.activeTab = id;
   renderTabs();
+  // Notify nav-history and other listeners (avoids circular import)
+  document.dispatchEvent(new CustomEvent('jolt:tab-activated', { detail: { path: id } }));
   // Lazy-import to avoid circular deps at load time
   import('./file-viewer.js').then(m => m.loadFile(id));
 }
@@ -47,6 +49,14 @@ export function closeTab(id) {
   else { $viewer.innerHTML = emptyState(); $crumb.innerHTML = ''; }
 }
 
+export function closeAllTabs() {
+  state.tabs = [];
+  state.activeTab = null;
+  renderTabs();
+  $viewer.innerHTML = emptyState();
+  $crumb.innerHTML = '';
+}
+
 export function renderTabs() {
   $tabBar.innerHTML = '';
   for (const tab of state.tabs) {
@@ -60,6 +70,16 @@ export function renderTabs() {
     });
     el.addEventListener('auxclick', e => { if (e.button === 1) closeTab(tab.id); });
     $tabBar.appendChild(el);
+  }
+
+  // Home button (visible only when tabs are open)
+  if (state.tabs.length > 0) {
+    const homeBtn = document.createElement('button');
+    homeBtn.className = 'tab-home-btn';
+    homeBtn.title = 'Close all tabs / Go home';
+    homeBtn.textContent = '\u2302'; // ⌂
+    homeBtn.addEventListener('click', () => closeAllTabs());
+    $tabBar.appendChild(homeBtn);
   }
 }
 

@@ -132,7 +132,12 @@ function closeSearchHistory() {
 
 function openFeedback() {
   const $pageField = document.getElementById('fb-page');
-  if ($pageField) $pageField.value = location.hash || '/';
+  if ($pageField) {
+    // Use active tab path if available, else hash, else '/'
+    import('./tabs.js').then(m => {
+      $pageField.value = m.state.activeTab || location.hash || '/';
+    });
+  }
 
   $feedbackModal.classList.add('open');
 

@@ -349,6 +349,103 @@ export async function showJ2eeWiringGraph() {
   } catch (err) { $body.innerHTML = '<div class="empty-state"><span>' + esc(err.message) + '</span></div>'; }
 }
 
+/* ── File Structure (Ctrl+F12) ────────────────── */
+
+export async function showFileStructure(path) {
+  openInspector('Structure: ' + path.split('/').pop());
+  try {
+    const res = await fetch('/api/file/structure?path=' + encodeURIComponent(path));
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const outline = await res.json();
+
+    if (!outline || outline.length === 0) { $body.innerHTML = '<div class="empty-state"><span>No types found in this file</span></div>'; return; }
+
+    let html = '';
+    for (const cls of outline) {
+      html += '<div class="insp-section">';
+      html += '<div class="insp-member" data-path="' + esc(path) + '" data-line="' + cls.line + '">';
+      html += '<span class="insp-kind ' + esc(cls.kind) + '">' + esc(cls.kind) + '</span>';
+      html += '<span class="insp-name">' + esc(cls.name) + '</span>';
+      html += '</div>';
+
+      if (cls.members && cls.members.length > 0) {
+        html += '<div class="insp-member-list">';
+        for (const m of cls.members) {
+          html += '<div class="insp-member" data-path="' + esc(path) + '" data-line="' + m.line + '">';
+          html += '<span class="insp-kind ' + esc(m.kind) + '">' + esc(m.kind.charAt(0)) + '</span>';
+          html += '<span class="insp-name">' + esc(m.name) + '</span>';
+          html += '</div>';
+        }
+        html += '</div>';
+      }
+      html += '</div>';
+    }
+
+    $body.innerHTML = html;
+    wireInspectorLinks();
+  } catch (err) { $body.innerHTML = '<div class="empty-state"><span>' + esc(err.message) + '</span></div>'; }
+}
+
+/* ── Go to Implementation (Ctrl+Alt+B) ────────── */
+
+export async function showImplementations(symbol) {
+  openInspector('Implementations: ' + symbol);
+  try {
+    const res = await fetch('/api/hierarchy?class=' + encodeURIComponent(symbol));
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const d = await res.json();
+
+    let html = '';
+
+    if (d.subTypes && d.subTypes.length > 0) {
+      html += '<div class="insp-section"><h4>Sub Types (' + d.subTypes.length + ')</h4><div class="insp-tree">';
+      for (const st of d.subTypes) {
+        html += '<div class="insp-tree-item insp-link" data-symbol="' + esc(st) + '">' + esc(st) + '</div>';
+      }
+      html += '</div></div>';
+    }
+
+    if (!html) html = '<div class="empty-state"><span>No implementations found</span></div>';
+    $body.innerHTML = html;
+
+    // Wire sub-type clicks to show definition
+    $body.querySelectorAll('[data-symbol]').forEach(el => {
+      el.addEventListener('click', () => showDefinition(el.dataset.symbol));
+    });
+  } catch (err) { $body.innerHTML = '<div class="empty-state"><span>' + esc(err.message) + '</span></div>'; }
+}
+
+/* ── Super Method (Ctrl+U) ────────────────────── */
+
+export async function showSuperMethod(symbol, methodName) {
+  openInspector('Super: ' + methodName);
+  try {
+    const res = await fetch('/api/hierarchy?class=' + encodeURIComponent(symbol));
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const d = await res.json();
+
+    if (!d.superClasses || d.superClasses.length === 0) {
+      $body.innerHTML = '<div class="empty-state"><span>No super class found</span></div>'; return;
+    }
+
+    const superFqn = d.superClasses[0];
+    const superSymbol = superFqn + '#' + methodName;
+
+    const defRes = await fetch('/api/definition?symbol=' + encodeURIComponent(superSymbol));
+    if (!defRes.ok) { $body.innerHTML = '<div class="empty-state"><span>Method not found in ' + esc(superFqn) + '</span></div>'; return; }
+
+    const def = await defRes.json();
+
+    let html = '<div class="insp-section">';
+    html += '<div class="insp-row"><span class="insp-label">Super</span><span class="insp-val">' + esc(superFqn) + '</span></div>';
+    html += '<div class="insp-row"><span class="insp-label">Method</span><a class="insp-link" data-path="' + esc(def.filePath) + '" data-line="' + def.lineStart + '">' + esc(def.filePath) + ':' + def.lineStart + '</a></div>';
+    html += '</div>';
+
+    $body.innerHTML = html;
+    wireInspectorLinks();
+  } catch (err) { $body.innerHTML = '<div class="empty-state"><span>' + esc(err.message) + '</span></div>'; }
+}
+
 /* ── Shared: wire click-to-open-file links ────── */
 
 function wireInspectorLinks() {

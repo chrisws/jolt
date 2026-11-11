@@ -36,26 +36,40 @@ public class KeybindingsService {
     bindings.put("global", List.of(
         binding("Ctrl+Shift+F", "focus_search"),
         binding("Ctrl+P", "quick_file_open"),
+        binding("Ctrl+E", "open_recent"),
         binding("Ctrl+T", "quick_type_open"),
         binding("Ctrl+Shift+G", "open_git_log"),
         binding("Ctrl+Shift+D", "open_commit_diff"),
         binding("Ctrl+Shift+A", "open_agent_changes"),
         binding("Ctrl+Tab", "next_tab"),
+        binding("ArrowRight", "next_tab"),
+        binding("ArrowLeft", "prev_tab"),
         binding("Ctrl+W", "close_tab"),
         binding("Esc", "close_panel"),
 
         // J2EE project-wide parsers
-        binding("Ctrl+Alt+B", "j2ee_webxml"),
+        binding("Ctrl+Shift+B", "j2ee_webxml"),
         binding("Ctrl+Alt+E", "j2ee_persistence"),
         binding("Ctrl+Alt+N", "j2ee_annotations"),
-        binding("Ctrl+Alt+W", "j2ee_wiring_graph")
+        binding("Ctrl+Alt+W", "j2ee_wiring_graph"),
+
+        // Navigation (IntelliJ-style)
+        binding("Ctrl+F12", "show_structure"),
+        binding("Ctrl+Alt+B", "go_to_implementation"),
+        binding("Ctrl+U", "super_method"),
+        binding("Ctrl+D", "toggle_bookmark")
     ));
 
     bindings.put("editor", List.of(
         binding("Ctrl+Click", "go_to_definition"),
         binding("Alt+F7", "find_references"),
         binding("Ctrl+H", "show_hierarchy"),
-        binding("Ctrl+G", "show_call_graph"),
+        binding("Ctrl+G", "go_to_line"),
+        binding("Ctrl+Shift+C", "show_call_graph"),
+
+        // Navigation history
+        binding("Ctrl+Alt+Left", "nav_back"),
+        binding("Ctrl+Alt+Right", "nav_forward"),
 
         // File-specific parsers (use active tab)
         binding("Ctrl+Shift+J", "parse_jsp"),

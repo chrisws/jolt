@@ -12,7 +12,11 @@ function fileIcon(type) {
   return '<svg viewBox="0 0 16 16" width="16" height="16"><rect x="2" y="2" width="12" height="12" rx="3" fill="' + color + '"/></svg>';
 }
 
-async function loadDir(dirPath, parentEl) {
+function toggleArrow(expanded) {
+  return '<span class="tree-toggle' + (expanded ? ' expanded' : '') + '">&#x25B6;</span>';
+}
+
+async function loadDir(dirPath, target, depth) {
   try {
     const res = await fetch('/api/file/tree?path=' + encodeURIComponent(dirPath));
     const entries = await res.json();
@@ -20,46 +24,86 @@ async function loadDir(dirPath, parentEl) {
     for (const e of entries) {
       const el = document.createElement('div');
       el.className = 'tree-item';
-      el.style.paddingLeft = (12 + (parentEl ? parentEl.dataset.depth : 0) * 16) + 'px';
+      el.style.paddingLeft = (8 + depth * 16) + 'px';
 
       if (e.type === 'directory') {
-        el.innerHTML = '<span class="icon">' + dirIcon() + '</span><span>' + esc(e.name) + '</span>';
-        el.dataset.depth = parentEl ? Number(parentEl.dataset.depth) + 1 : 1;
-        el.addEventListener('click', () => {
-          if (el.dataset.loaded) { el.nextElementSibling && (el.nextElementSibling.style.display = none); el.dataset.loaded = '0'; return; }
-          const container = document.createElement('div');
-          container.style.display = 'block';
-          el.after(container);
-          loadDir(e.path, el);
-          el.dataset.loaded = '1';
+        el.innerHTML = toggleArrow(false) + '<span class="icon">' + dirIcon() + '</span><span class="tree-label">' + esc(e.name) + '</span>';
+        el.dataset.path = e.path;
+
+        // Child container (hidden until expanded)
+        const childContainer = document.createElement('div');
+        childContainer.className = 'tree-children';
+        childContainer.style.display = 'none';
+
+        let loaded = false;
+
+        el.addEventListener('click', async (ev) => {
+          ev.stopPropagation();
+          const isExpanded = childContainer.style.display !== 'none';
+
+          if (!isExpanded && !loaded) {
+            // First expand: fetch children into the container
+            loaded = true;
+            await loadDir(e.path, childContainer, depth + 1);
+          }
+
+          childContainer.style.display = isExpanded ? 'none' : 'block';
+          const arrow = el.querySelector('.tree-toggle');
+          if (arrow) { arrow.classList.toggle('expanded', !isExpanded); }
         });
+
+        target.appendChild(el);
+        target.appendChild(childContainer);
+
       } else {
         const ext = e.name.split('.').pop();
-        el.innerHTML = '<span class="icon">' + fileIcon(ext) + '</span><span>' + esc(e.name) + '</span>';
+        el.innerHTML = '<span class="tree-toggle-spacer"></span><span class="icon">' + fileIcon(ext) + '</span><span class="tree-label">' + esc(e.name) + '</span>';
+        el.dataset.path = e.path;
+
         el.addEventListener('click', () => {
           $fileTree.querySelectorAll('.tree-item.active').forEach(a => a.classList.remove('active'));
           el.classList.add('active');
           import('./tabs.js').then(m => m.openTab(e.path));
         });
-      }
 
-      if (parentEl && parentEl.nextElementSibling) parentEl.nextElementSibling.appendChild(el);
-      else parentEl.appendChild(el);
+        target.appendChild(el);
+      }
     }
   } catch (err) { console.error('Dir load failed:', err); }
 }
 
+// ── Collapse / Expand All ──────────────────────────
+
+function collapseAll() {
+  $fileTree.querySelectorAll('.tree-children').forEach(c => { c.style.display = 'none'; });
+  $fileTree.querySelectorAll('.tree-toggle').forEach(t => { t.classList.remove('expanded'); });
+}
+
+function expandAll() {
+  // Expand all directories that already have loaded children
+  const dirs = $fileTree.querySelectorAll('.tree-item[data-path]');
+  dirs.forEach(dir => {
+    const next = dir.nextElementSibling;
+    if (next && next.classList.contains('tree-children')) {
+      next.style.display = 'block';
+      const arrow = dir.querySelector('.tree-toggle');
+      if (arrow) { arrow.classList.add('expanded'); }
+    }
+  });
+}
+
 export function loadFileTree() {
-  const label = $fileTree.querySelector('.section-label');
   $fileTree.innerHTML = '';
-  $fileTree.appendChild(label);
 
-  const root = document.createElement('div');
-  root.className = 'tree-item';
-  root.dataset.depth = '0';
-  root.innerHTML = '<span class="icon">' + dirIcon() + '</span><span>src</span>';
-  root.addEventListener('click', () => { loadDir('', root); });
-  $fileTree.appendChild(root);
+  // Section header with control buttons
+  const header = document.createElement('div');
+  header.className = 'section-label tree-header';
+  header.innerHTML = '<span>Project</span><span class="tree-controls"><button class="tree-btn" id="tree-collapse-all" title="Collapse all">&#x2195;</button><button class="tree-btn" id="tree-expand-all" title="Expand all">&#x2194;</button></span>';
 
-  loadDir('', null);
+  $fileTree.appendChild(header);
+
+  document.getElementById('tree-collapse-all').addEventListener('click', collapseAll);
+  document.getElementById('tree-expand-all').addEventListener('click', expandAll);
+
+  loadDir('', $fileTree, 0);
 }

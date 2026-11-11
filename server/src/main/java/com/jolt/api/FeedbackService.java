@@ -22,7 +22,7 @@ public class FeedbackService {
     this.feedbackFile = homeDir.resolve(".jolt").resolve("feedback.jsonl");   
   }  
 
-  /** Record a feedback entry and return it with timestamp. */  
+   /** Record a feedback entry and return it with timestamp. */  
   public Map<String, Object> record(String page, String file, String message) throws IOException {    
     if (message == null || message.isBlank()) throw new IllegalArgumentException("Message is required");   
 
@@ -42,5 +42,25 @@ public class FeedbackService {
 
     return entry;  
   }  
+
+  /** Append a completed feedback entry to the tracking journal (.jolt/completed.jsonl). */
+  public Map<String, Object> markCompleted(String page, String file, String message) throws IOException {
+    Path completedFile = feedbackFile.getParent().resolve("completed.jsonl");
+    Files.createDirectories(completedFile.getParent());
+
+    Map<String, Object> entry = new LinkedHashMap<>();
+    entry.put("ts", Instant.now().toString());
+    entry.put("page", page != null ? page : "unknown");
+    if (file != null && !file.isBlank()) entry.put("file", file);
+    entry.put("msg", message);
+    entry.put("completed", Instant.now().toString());
+
+    String jsonLine = mapper.writeValueAsString(entry);
+    Files.writeString(completedFile, jsonLine + "\n", StandardOpenOption.CREATE, StandardOpenOption.APPEND);
+
+    log.info("Completed journaled [{}]: {}", page, message.substring(0, Math.min(message.length(), 80)));
+
+    return entry;
+  }
 
 }

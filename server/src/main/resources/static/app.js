@@ -8,6 +8,10 @@ import { initUserData } from './modules/user-data.js';
 import { initFileViewer } from './modules/file-viewer.js';
 import { initQuickOpen, openQuickOpen } from './modules/quick-open.js';
 import { copyShareableLink } from './modules/router.js';
+import { initBranchSelector } from './modules/branch-selector.js';
+import { initNavHistory } from './modules/nav-history.js';
+import { initDivider } from './modules/divider.js';
+import { initContextMenu } from './modules/context-menu.js';
 
 // Startup: wire up all subsystems
 initSearch();
@@ -18,7 +22,11 @@ initRouter();
 loadFileTree();
 initUserData();
 initFileViewer();
+initBranchSelector();
 initQuickOpen();
+initDivider();
+initContextMenu();
+initNavHistory();
 
 // Expose for keybindings module
 window._openQuickOpen = openQuickOpen;

@@ -1,12 +1,14 @@
 package com.jolt.api;
 
-import com.jolt.git.BlameService;
+ import com.jolt.git.BlameService;
 import com.jolt.git.GitService;
 import com.jolt.index.EmbeddingService;
 import com.jolt.index.LuceneIndexer;
 import com.jolt.model.*;
 import com.jolt.nav.CallGraph;
 import com.jolt.nav.SymbolTable;
+import com.jolt.parse.FileWalker;
+import com.jolt.parse.JavaParser;
 import io.javalin.Javalin;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -14,6 +16,8 @@ import org.slf4j.LoggerFactory;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -29,7 +33,7 @@ public class ApiRoutes {
   private final FeedbackService feedback;
   private final BlameService blameSvc;
   private final DashboardService dashboard;
-  private final EmbeddingService embedder; // nullable — null if model file missing
+private EmbeddingService embedder; // nullable — null if model file missing
   private final CallGraph callGraph;
   private final GitService gitSvc;
   private final SettingsService settingsSvc;
@@ -93,16 +97,29 @@ public class ApiRoutes {
       Object cfgEdits = settingsSvc.getSetting("search.fuzzy.maxEdits");
       if (cfgEdits instanceof Number n) { maxEdits = Math.max(0, Math.min(3, n.intValue())); }
 
+      boolean caseSensitive = "1".equals(ctx.queryParam("cs"));
+      boolean wholeWord = "1".equals(ctx.queryParam("ww"));
+
       List<SearchHit> hits;
       try {
-        hits = indexer.search(q, kindFilter, maxResults, maxEdits);
+        hits = indexer.search(q, kindFilter, maxResults, maxEdits, caseSensitive, wholeWord);
       } catch (Exception e) {
         log.error("Search failed: {}", e.getMessage());
         ctx.status(500).json(Map.of("error", e.getMessage()));
         return;
       }
 
-      ctx.json(hits);
+      // Relativize absolute filePaths against homeDir for consistent tab matching
+      List<SearchHit> relativized = hits.stream().map(h -> {
+        Path fp = Path.of(h.filePath());
+        if (fp.isAbsolute() && fp.startsWith(homeDir)) {
+          String rel = homeDir.relativize(fp).toString();
+          return new SearchHit(h.id(), h.kind(), h.name(), h.qualifiedName(), rel, h.lineStart(), h.score());
+        }
+        return h;
+      }).toList();
+
+      ctx.json(relativized);
     });
 
     // --- Search Suggestions (typeahead) ---
@@ -164,6 +181,7 @@ public class ApiRoutes {
       if (!filePath.startsWith(homeDir)) { ctx.status(403).result("Access denied"); return; }
 
       if (!Files.exists(filePath)) { ctx.status(404).result("File not found: " + path); return; }
+      if (!Files.isRegularFile(filePath)) { ctx.status(400).result("Not a file: " + path); return; }
 
       int startLine = 1;
       int endLine = Integer.MAX_VALUE;
@@ -185,6 +203,44 @@ public class ApiRoutes {
       );
 
       ctx.json(response);
+    });
+
+    // --- File Structure (outline) ---
+    routes.get("/api/file/structure", ctx -> {
+      String path = ctx.queryParam("path");
+      if (path == null || path.isBlank()) { ctx.status(400).result("Missing 'path' parameter"); return; }
+
+      Path filePath = homeDir.resolve(path).normalize();
+      if (!filePath.startsWith(homeDir)) { ctx.status(403).result("Access denied"); return; }
+      if (!Files.exists(filePath)) { ctx.status(404).result("File not found: " + path); return; }
+
+      try {
+        var svc = new com.jolt.parse.JavaParserService(filePath);
+        var types = svc.parseFile();
+
+        List<Map<String, Object>> outline = new ArrayList<>();
+        for (var cs : types) {
+          Map<String, Object> cls = new LinkedHashMap<>();
+          cls.put("name", cs.name);
+          cls.put("kind", cs.kind.name());
+          cls.put("line", cs.lineStart);
+
+          List<Map<String, Object>> members = new ArrayList<>();
+          for (var fs : cs.fields.values()) {
+            members.add(Map.of("name", fs.name(), "kind", "FIELD", "line", 0));
+          }
+          for (var ms : cs.methods.values()) {
+            members.add(Map.of("name", ms.name() + "()", "kind", "METHOD", "line", ms.lineStart()));
+          }
+          cls.put("members", members);
+          outline.add(cls);
+        }
+
+        ctx.json(outline);
+      } catch (Exception e) {
+        log.error("File structure failed: {}", e.getMessage());
+        ctx.status(500).json(Map.of("error", e.getMessage()));
+      }
     });
 
     // --- Go-to-Definition ---
@@ -502,6 +558,55 @@ public class ApiRoutes {
       ctx.json(branches);
     });
 
+    // --- Git Checkout Branch ---
+    routes.post("/api/git/checkout", ctx -> {
+String branch = ctx.body();
+      if (branch == null || branch.isBlank()) { ctx.status(400).result("Missing branch name"); return; }
+      try {
+        String current = gitSvc.checkoutBranch(branch);
+        ctx.json(Map.of("branch", current));
+      } catch (Exception e) {
+        ctx.status(409).json(Map.of("error", e.getMessage()));
+      }
+    });
+// --- Model Management ---
+    routes.get("/api/models", ctx -> {
+      try {
+        Path joltDir = homeDir.resolve(".jolt");
+        if (!Files.exists(joltDir)) { ctx.json(List.of()); return; }
+        List<String> models = new ArrayList<>();
+        Files.walk(joltDir, 3).filter(p -> p.toString().endsWith(".onnx"))
+          .forEach(p -> models.add(joltDir.relativize(p).toString()));
+        ctx.json(models);
+      } catch (Exception e) { ctx.status(500).json(Map.of("error", e.getMessage())); }
+    });
+
+    routes.post("/api/models/select", ctx -> {
+      String file = ctx.body();
+      if (file == null || file.isBlank()) { ctx.status(400).result("Missing model path"); return; }
+      try {
+        Path modelPath = homeDir.resolve(".jolt").resolve(file);
+        if (!Files.exists(modelPath)) { ctx.status(404).json(Map.of("error", "File not found: " + file)); return; }
+         if (embedder != null) embedder.close();
+        this.embedder = new EmbeddingService(modelPath);
+
+        // Trigger async re-index so the HTTP response returns immediately
+        Thread reindexThread = new Thread(() -> {
+          try {
+            log.info("Re-indexing all files with model: {}", file);
+            reindexAll();
+            log.info("Re-index complete");
+          } catch (Exception e) {
+            log.error("Re-index failed: {}", e.getMessage(), e);
+          }
+        }, "jolt-reindex");
+        reindexThread.setDaemon(true);
+        reindexThread.start();
+
+        ctx.json(Map.of("model", file, "status", "loaded", "reindexing", true));
+} catch (Exception e) { ctx.status(500).json(Map.of("error", e.getMessage())); }
+    });
+
 
     // --- Bookmarks ---
     var bookmarksSvc = new BookmarksService(homeDir);
@@ -563,8 +668,28 @@ public class ApiRoutes {
         Map<String, Object> entry = feedback.record(page, file, message);
         ctx.status(201).json(entry);
 
-      } catch (Exception e) {
+       } catch (Exception e) {
         log.error("Feedback write failed: {}", e.getMessage());
+        ctx.status(500).json(Map.of("error", e.getMessage()));
+      }
+    });
+
+    routes.post("/api/feedback/complete", ctx -> {
+      try {
+        var body = ctx.bodyAsClass(Map.class);
+        String page = (String) body.getOrDefault("page", "unknown");
+        String file = (String) body.get("file");
+        String message = (String) body.get("message");
+
+        if (message == null || message.isBlank()) {
+          ctx.status(400).json(Map.of("error", "Message is required")); return;
+        }
+
+        Map<String, Object> entry = feedback.markCompleted(page, file, message);
+        ctx.status(201).json(entry);
+
+      } catch (Exception e) {
+        log.error("Feedback complete write failed: {}", e.getMessage());
         ctx.status(500).json(Map.of("error", e.getMessage()));
       }
     });
@@ -684,7 +809,7 @@ public class ApiRoutes {
     log.info("API routes registered");
   }
 
-  private static String detectLanguage(String path) {
+   private static String detectLanguage(String path) {
     if (path.endsWith(".java")) return "java";
     if (path.endsWith(".xml")) return "xml";
     if (path.endsWith(".jsp")) return "jsp";
@@ -696,6 +821,46 @@ public class ApiRoutes {
     if (path.endsWith(".groovy") || path.endsWith(".gvy")) return "groovy";
     if (path.endsWith(".md")) return "markdown";
     return "";
+  }
+
+  /** Re-index all Java files under homeDir (mirrors ServerBootstrap indexing loop). */
+  private void reindexAll() throws Exception {
+    log.info("Re-index starting under {}", homeDir);
+
+    List<Path> javaFiles = FileWalker.findJavaFiles(homeDir);
+    log.info("Re-index: found {} Java files", javaFiles.size());
+
+    JavaParser parser = new JavaParser();
+    parser.setCallGraph(callGraph);
+
+    List<ClassSymbol> allSymbols = new ArrayList<>();
+
+    for (int i = 0; i < javaFiles.size(); i++) {
+      Path file = javaFiles.get(i);
+
+      List<ClassSymbol> symbols = parser.parse(file);
+      for (ClassSymbol cs : symbols) {
+        allSymbols.add(cs);
+        indexer.indexClass(cs);
+      }
+
+      String relPath = homeDir.relativize(file).toString();
+      try {
+        String content = Files.readString(file);
+        indexer.indexFile(relPath, content);
+      } catch (Exception e) {
+        log.debug("Re-index: skipping raw index for {}: {}", relPath, e.getMessage());
+      }
+
+      if ((i + 1) % 100 == 0) {
+        log.info("Re-index: {}/{} files", i + 1, javaFiles.size());
+      }
+    }
+
+    symbolTable.addAll(allSymbols);
+    indexer.commit();
+
+    log.info("Re-index complete: {} classes", allSymbols.size());
   }
 
 }

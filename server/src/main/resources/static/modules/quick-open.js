@@ -26,6 +26,56 @@ export function closeQuickOpen() {
   $qoBackdrop.classList.remove('open');
 }
 
+/* ── Recent Files (Ctrl+E) ─────────────────────────── */
+
+export async function openRecent() {
+  qoOpen = true;
+  qoItems = [];
+  qoActive = -1;
+  $qoInput.value = '';
+  $qoList.innerHTML = '<div class="qo-empty">Loading…</div>';
+  $qoBackdrop.classList.add('open');
+  $qoInput.focus();
+
+  try {
+    const res = await fetch('/api/recent');
+    const files = await res.json();
+
+    $qoList.innerHTML = '';
+
+    if (!files || files.length === 0) {
+      $qoList.innerHTML = '<div class="qo-empty">No recent files</div>';
+      return;
+    }
+
+    const header = document.createElement('div');
+    header.className = 'qo-group-header';
+    header.textContent = 'recent';
+    $qoList.appendChild(header);
+
+    for (const f of files) {
+      const el = document.createElement('div');
+      el.className = 'qo-item';
+      const name = f.path.split('/').pop();
+      const dir = f.path.substring(0, f.path.lastIndexOf('/'));
+      el.innerHTML = '<span class="qo-kind qk-file">F</span>' +
+        '<span class="qo-name">' + esc(name) + '</span>' +
+        '<span class="qo-path">' + esc(dir) + '</span>';
+      el.addEventListener('click', () => {
+        closeQuickOpen();
+        import('./tabs.js').then(m => m.openTab(f.path));
+      });
+      $qoList.appendChild(el);
+      qoItems.push({ hit: { filePath: f.path, name, kind: 'FILE' }, el });
+    }
+
+    scrollToActive();
+  } catch (err) {
+    $qoList.innerHTML = '<div class="qo-empty">Failed to load</div>';
+    console.error('Recent files failed:', err);
+  }
+}
+
 async function doQuickSearch(query) {
   if (!query || query.length < 1) { $qoList.innerHTML = ''; qoItems = []; return; }
 

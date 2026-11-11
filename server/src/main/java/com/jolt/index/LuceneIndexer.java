@@ -129,6 +129,12 @@ public class LuceneIndexer implements AutoCloseable {
 
   /** Search with optional fuzzy fallback. If {@code maxEdits > 0}, supplements sparse results with FuzzyQuery. */
   public List<SearchHit> search(String queryText, SymbolKind kindFilter, int maxResults, int maxEdits) throws Exception {
+    return search(queryText, kindFilter, maxResults, maxEdits, false, false);
+  }
+
+  /** Search with case-sensitive and whole-word post-filters. */
+  public List<SearchHit> search(String queryText, SymbolKind kindFilter, int maxResults, int maxEdits,
+                                boolean caseSensitive, boolean wholeWord) throws Exception {
     QueryParser parser = new QueryParser("body", ANALYZER); // search in body field primarily
 
     BooleanQuery.Builder builder = new BooleanQuery.Builder();
@@ -226,10 +232,46 @@ public class LuceneIndexer implements AutoCloseable {
         }
       }
 
+      // Post-filters: case-sensitive and whole-word matching on name/qualifiedName
+      if ((caseSensitive || wholeWord) && queryText != null && !queryText.isBlank()) {
+        List<SearchHit> filtered = new ArrayList<>();
+        for (SearchHit h : hits) {
+          String name = h.name();
+          String qn = h.qualifiedName();
+
+          // Case-sensitive: exact case match in name or qualifiedName
+          if (caseSensitive) {
+            if (!name.contains(queryText) && !qn.contains(queryText)) continue;
+          }
+
+          // Whole-word: query must appear as a standalone word (bounded by non-alphanumeric)
+          if (wholeWord) {
+            if (!containsWholeWord(name, queryText) && !containsWholeWord(qn, queryText)) continue;
+          }
+
+          filtered.add(h);
+        }
+        hits = filtered;
+      }
+
       return hits;
     } finally {
       searcherMgr.release(searcher);
     }
+  }
+
+  /** Check if {@code text} contains {@code word} as a whole word (bounded by non-alphanumeric chars). */
+  private static boolean containsWholeWord(String text, String word) {
+    if (text == null || word == null || word.isEmpty()) return false;
+    int idx = 0;
+    while ((idx = text.indexOf(word, idx)) != -1) {
+      int end = idx + word.length();
+      boolean leftOk = (idx == 0) || !Character.isLetterOrDigit(text.charAt(idx - 1));
+      boolean rightOk = (end == text.length()) || !Character.isLetterOrDigit(text.charAt(end));
+      if (leftOk && rightOk) return true;
+      idx++;
+    }
+    return false;
   }
 
   /** Semantic search using brute-force cosine similarity over stored embeddings. */
