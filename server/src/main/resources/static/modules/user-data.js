@@ -130,12 +130,18 @@ function closeSearchHistory() {
 
 // ── Feedback Modal ─────────────────────────────────────────
 
-function openFeedback() {
+function openFeedback(filePath, line) {
   const $pageField = document.getElementById('fb-page');
-  if ($pageField) {
+  const $fileField = document.getElementById('fb-file');
+
+  if (filePath) {
+    // Pre-fill from explicit params (e.g. clicking a code line)
+    if ($pageField) $pageField.value = filePath;
+    if ($fileField) $fileField.value = filePath + (line ? ':' + line : '');
+  } else {
     // Use active tab path if available, else hash, else '/'
     import('./tabs.js').then(m => {
-      $pageField.value = m.state.activeTab || location.hash || '/';
+      if ($pageField) $pageField.value = m.state.activeTab || location.hash || '/';
     });
   }
 
@@ -143,6 +149,11 @@ function openFeedback() {
 
   const $msgField = document.getElementById('fb-message');
   if ($msgField) $msgField.focus();
+}
+
+/** Open feedback pre-filled for a specific code line. */
+export function reportCodeIssue(filePath, line) {
+  openFeedback(filePath, line);
 }
 
 function closeFeedback() {
@@ -178,12 +189,83 @@ async function submitFeedback(e) {
   } catch (err) { console.error('Feedback submit failed:', err); }
 }
 
+// ── Git Changes Section ────────────────────────────────────
+
+const $gitChanges = document.getElementById('git-changes-list');
+
+async function loadGitChanges() {
+  if (!$gitChanges) return;
+  try {
+    const res = await fetch('/api/git/status');
+    if (!res.ok) return;
+    const dirtyPaths = await res.json();
+
+    $gitChanges.innerHTML = '';
+
+    if (!dirtyPaths || dirtyPaths.length === 0) {
+      $gitChanges.innerHTML = '<div class="empty-hint">No changes</div>';
+      return;
+    }
+
+    for (const p of dirtyPaths) {
+      const el = document.createElement('div');
+      el.className = 'git-change-item';
+      const name = p.split('/').pop();
+      el.innerHTML = '<span class="gc-dot"></span><span class="gc-name">' + esc(name) + '</span>';
+      el.title = p;
+
+      el.addEventListener('click', () => showDirtyDiff(p));
+      $gitChanges.appendChild(el);
+    }
+  } catch (_) { /* not a git repo */ }
+}
+
+async function showDirtyDiff(path) {
+  const $viewer = document.getElementById('code-viewer');
+  $viewer.innerHTML = '<div class="loading">Loading diff…</div>';
+
+  try {
+    const res = await fetch('/api/git/dirty-diff?path=' + encodeURIComponent(path));
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const diffText = await res.text();
+
+    let html = '<div class="git-page">';
+    html += '<div class="git-header"><h1>Working Tree Diff</h1><a href="#" class="git-nav-link" id="dirty-diff-back">&larr; Back</a></div>';
+    html += '<div class="diff-file-header">' + esc(path) + '</div>';
+    html += '<div class="diff-body">';
+
+    const lines = diffText.split('\n');
+    for (const line of lines) {
+      let cls = 'diff-ctx'; let prefix = ' ';
+      if (line.startsWith('+') && !line.startsWith('+++')) { cls = 'diff-add'; prefix = '+'; }
+      else if (line.startsWith('-') && !line.startsWith('---')) { cls = 'diff-del'; prefix = '-'; }
+      else if (line.startsWith('@@')) { cls = 'diff-hunk'; prefix = '@@'; }
+      else if (line.startsWith('---') || line.startsWith('+++')) { cls = 'diff-meta'; prefix = line[0]; }
+
+      const content = line.substring(1);
+      html += '<div class="diff-line ' + cls + '"><span class="diff-prefix">' + esc(prefix) + '</span><span class="diff-text">' + esc(content) + '</span></div>';
+    }
+
+    html += '</div></div>';
+    $viewer.innerHTML = html;
+
+    document.getElementById('dirty-diff-back').addEventListener('click', (e) => {
+      e.preventDefault();
+      location.hash = '';
+    });
+
+  } catch (err) {
+    $viewer.innerHTML = '<div class="empty-state"><span>Failed: ' + esc(err.message) + '</span></div>';
+  }
+}
+
 // ── Init ───────────────────────────────────────────────────
 
 export function initUserData() {
-  // Bookmarks + Recent in sidebar (load on start)
+  // Bookmarks + Recent + Git Changes in sidebar (load on start)
   loadBookmarks();
   loadRecent();
+  loadGitChanges();
 
   // Search history toggle button in search panel header
   const $histBtn = document.getElementById('search-history-btn');

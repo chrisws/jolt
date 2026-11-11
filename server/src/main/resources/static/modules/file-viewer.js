@@ -10,6 +10,16 @@ export async function loadFile(path) {
     const data = await res.json();
     renderCode(data.content, data.language);
     renderBreadcrumb(path);
+
+    // Click line number → report issue with that code line
+    $viewer.querySelectorAll('.line-num').forEach(el => {
+      el.style.cursor = 'pointer';
+      el.title = 'Report issue on this line';
+      el.addEventListener('click', () => {
+        import('./user-data.js').then(m => m.reportCodeIssue(path, Number(el.textContent)));
+      });
+    });
+
     $viewer.focus();
   } catch (err) {
     $viewer.innerHTML = '<div class="empty-state"><span>Failed: ' + esc(err.message) + '</span></div>';

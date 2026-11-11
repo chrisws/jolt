@@ -737,6 +737,20 @@ String branch = ctx.body();
       ctx.json(stats);
     });
 
+    // --- Git Working Tree Status (dirty files) ---
+    routes.get("/api/git/status", ctx -> {
+      Set<String> dirty = gitSvc.workingTreeStatus();
+      ctx.json(dirty);
+    });
+
+    // --- Git Working Tree Diff (single file) ---
+    routes.get("/api/git/dirty-diff", ctx -> {
+      String path = ctx.queryParam("path");
+      if (path == null || path.isBlank()) { ctx.status(400).result("Missing 'path' parameter"); return; }
+      String diff = gitSvc.workingTreeDiff(path);
+      ctx.contentType("text/plain").result(diff);
+    });
+
     // --- Git Commits Paginated (Stage 3b) ---
     routes.get("/api/git/commits", ctx -> {
       String branch = ctx.queryParam("branch");

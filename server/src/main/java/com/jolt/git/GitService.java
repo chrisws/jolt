@@ -1,6 +1,7 @@
 package com.jolt.git;
 
 import org.eclipse.jgit.api.Git;
+import org.eclipse.jgit.api.Status;
 import org.eclipse.jgit.diff.DiffEntry;
 import org.eclipse.jgit.diff.DiffFormatter;
 import org.eclipse.jgit.lib.ObjectId;
@@ -721,6 +722,42 @@ public class GitService {
     }
 
     return sb.toString();
+  }
+
+  /** Returns paths of files with uncommitted changes (modified, added, deleted, untracked). */
+  public Set<String> workingTreeStatus() {
+    Set<String> dirty = new LinkedHashSet<>();
+    try (Git git = Git.open(homeDir.toFile())) {
+      Status status = git.status().call();
+      dirty.addAll(status.getUncommittedChanges());
+      dirty.addAll(status.getUntracked());
+    } catch (Exception e) {
+      log.warn("Git status failed: {}", e.getMessage());
+    }
+    return dirty;
+  }
+
+  /** Unified diff between HEAD and the working tree for a specific file. */
+  public String workingTreeDiff(String path) {
+    try (Git git = Git.open(homeDir.toFile())) {
+      List<DiffEntry> diffs = git.diff().call();
+
+      ByteArrayOutputStream baos = new ByteArrayOutputStream();
+      DiffFormatter formatter = new DiffFormatter(baos);
+
+      for (DiffEntry de : diffs) {
+        if (de.getNewPath().equals(path) || de.getOldPath().equals(path)) {
+          formatter.format(List.of(de));
+          break;
+        }
+      }
+
+      return baos.toString();
+
+    } catch (Exception e) {
+      log.error("Working tree diff failed for {}: {}", path, e.getMessage());
+      return "";
+    }
   }
 
 }

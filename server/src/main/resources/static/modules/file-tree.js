@@ -92,7 +92,7 @@ function expandAll() {
   });
 }
 
-export function loadFileTree() {
+export async function loadFileTree() {
   $fileTree.innerHTML = '';
 
   // Section header with control buttons
@@ -105,5 +105,29 @@ export function loadFileTree() {
   document.getElementById('tree-collapse-all').addEventListener('click', collapseAll);
   document.getElementById('tree-expand-all').addEventListener('click', expandAll);
 
-  loadDir('', $fileTree, 0);
+  await loadDir('', $fileTree, 0);
+  markDirtyFiles();
+}
+
+/** Fetch git status and mark dirty files in the tree with a dot indicator. */
+async function markDirtyFiles() {
+  try {
+    const res = await fetch('/api/git/status');
+    if (!res.ok) return;
+    const dirtyPaths = await res.json(); // array of file paths
+
+    $fileTree.querySelectorAll('.tree-item[data-path]').forEach(el => {
+      const path = el.dataset.path;
+      if (dirtyPaths.includes(path)) {
+        el.classList.add('dirty');
+        const label = el.querySelector('.tree-label');
+        if (label && !label.querySelector('.dirty-dot')) {
+          const dot = document.createElement('span');
+          dot.className = 'dirty-dot';
+          dot.title = 'Uncommitted changes';
+          label.appendChild(dot);
+        }
+      }
+    });
+  } catch (_) { /* not a git repo or API unavailable */ }
 }

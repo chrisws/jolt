@@ -38,7 +38,8 @@ shift
 
 case "$CMD" in
   build)   build_server ;;
-  run)     java ${JAVA_OPTS} -jar "$JAR" "$@" 2>&1 | tee jolt.log ;;
+  run)     : > .jolt/feedback.jsonl
+           java ${JAVA_OPTS} -jar "$JAR" "$@" 2>&1 | tee jolt.log ;;
   dev)     # Start Javalin in background, then Python HMR dev server in foreground
            mvn -f server/pom.xml compile exec:java -Dexec.mainClass=com.jolt.JoltApp -Dexec.args="$@" -q &
            JAVLIN_PID=$!

@@ -12,7 +12,7 @@
 
     <!-- Top bar -->
     <header class="topbar">
-      <span class="logo">Jolt</span>
+      <a class="logo" href="/">Jolt</a>
       <div class="branch-selector" id="branch-selector" title="Current branch — click to switch">
         <span class="branch-icon">&#x2387;</span>
         <span class="branch-name" id="branch-name">…</span>
@@ -36,6 +36,12 @@
       <nav class="sidebar" id="file-tree" aria-label="File tree">
         <div class="section-label">Project</div>
         <!-- populated by app.js -->
+      </nav>
+
+      <!-- Git Changes -->
+      <nav class="sidebar-section" id="git-changes-section" aria-label="Git changes">
+        <div class="section-label">Git Changes</div>
+        <div id="git-changes-list"></div>
       </nav>
 
       <!-- Bookmarks -->

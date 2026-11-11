@@ -15,7 +15,7 @@ function emptyState() {
     '<div class="welcome-hints">' +
       '<div class="hint-item"><span class="hint-icon">&#x2022;</span><span>Search code with <kbd>Ctrl+Shift+F</kbd></span></div>' +
       '<div class="hint-item"><span class="hint-icon">&#x2022;</span><span>Click files in the tree to open tabs</span></div>' +
-      '<div class="hint-item git-hint"><span class="hint-icon">&#x2022;</span><span>This project is tracked with Git. View commit history, diffs &amp; contributor stats <a href="/git" class="git-link">&rarr;</a></span></div>' +
+      '<div class="hint-item git-hint"><span class="hint-icon">&#x2022;</span><span>This project is tracked with Git. View commit history, diffs &amp; contributor stats <a href="#/git" class="git-link">&rarr; Git</a></span></div>' +
     '</div></div>';
 }
 

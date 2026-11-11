@@ -8,7 +8,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
-import java.nio.IntBuffer;
+import java.nio.LongBuffer;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -47,10 +47,17 @@ public class EmbeddingService implements AutoCloseable {
       int[] attentionMask = new int[inputIds.length];
       java.util.Arrays.fill(attentionMask, 1);
 
+      long[] idsLong = new long[inputIds.length];
+      long[] maskLong = new long[attentionMask.length];
+      for (int i = 0; i < inputIds.length; i++) {
+        idsLong[i] = inputIds[i];
+        maskLong[i] = attentionMask[i];
+      }
+
       long[] shape = {1, inputIds.length};
 
-      try (OnnxTensor idsTensor = OnnxTensor.createTensor(env, IntBuffer.wrap(inputIds), shape);
-           OnnxTensor maskTensor = OnnxTensor.createTensor(env, IntBuffer.wrap(attentionMask), shape)) {
+      try (OnnxTensor idsTensor = OnnxTensor.createTensor(env, LongBuffer.wrap(idsLong), shape);
+           OnnxTensor maskTensor = OnnxTensor.createTensor(env, LongBuffer.wrap(maskLong), shape)) {
 
         var inputs = new java.util.HashMap<String, OnnxTensor>();
         inputs.put("input_ids", idsTensor);
