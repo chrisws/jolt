@@ -1,3 +1,5 @@
+import { renderInlineDiff } from './diff-utils.js';
+
 const $viewer = document.getElementById('code-viewer');
 
 function esc(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
@@ -206,7 +208,8 @@ export async function renderCommitDetail(hash) {
 
     html += '<div class="diff-view-toggle">';
     html += '<button data-view="unified" class="view-btn active">Unified</button>';
-    html += '<button data-view="split" class="view-btn">Split</button>';
+    html += '<button data-view="split" class="view-btn">Side-by-side</button>';
+    html += '<button data-view="inline" class="view-btn">Inline</button>';
     html += '<button data-view="raw" class="view-btn">Raw</button>';
     html += '<a href="/api/git/commit/patch?hash=' + esc(hash) + '" class="btn-small" download>⬇ .patch</a>';
     html += '</div>';
@@ -287,6 +290,7 @@ async function loadFileDiff(commitHash, filePath, idx) {
       const diffLines = data.diff ? data.diff.split('\n') : [];
 
       if (view === 'split') { renderSplitDiff(diffArea, filePath, diffLines); }
+      else if (view === 'inline') { renderInlineDiff(diffArea, filePath, diffLines); }
       else { renderUnifiedDiff(diffArea, filePath, diffLines, maxLines); }
     }
   } catch (err) {

@@ -173,7 +173,7 @@ export async function initKeybindings() {
   registerAction('j2ee_annotations', () => import('./inspector.js').then(m => m.showJ2eeAnnotations()));
   registerAction('j2ee_wiring_graph', () => import('./inspector.js').then(m => m.showJ2eeWiringGraph()));
 
-  registerAction('quick_file_open', () => import('./search.js').then(m => m.focusSearch()));
+  registerAction('quick_file_open', () => { if (window._openQuickOpen) window._openQuickOpen(); });
 
   document.addEventListener('keydown', e => {
     const tag = e.target.tagName;

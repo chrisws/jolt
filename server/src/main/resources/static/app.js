@@ -6,6 +6,8 @@ import { loadFileTree } from './modules/file-tree.js';
 import { initInspector } from './modules/inspector.js';
 import { initUserData } from './modules/user-data.js';
 import { initFileViewer } from './modules/file-viewer.js';
+import { initQuickOpen, openQuickOpen } from './modules/quick-open.js';
+import { copyShareableLink } from './modules/router.js';
 
 // Startup: wire up all subsystems
 initSearch();
@@ -16,3 +18,10 @@ initRouter();
 loadFileTree();
 initUserData();
 initFileViewer();
+initQuickOpen();
+
+// Expose for keybindings module
+window._openQuickOpen = openQuickOpen;
+
+// Copy Link button
+document.getElementById('copy-link-btn').addEventListener('click', copyShareableLink);

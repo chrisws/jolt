@@ -13,13 +13,13 @@ A server-side Java code explorer with IntelliJ-like navigation, accessible from 
 - **Full-text & symbol search** across hundreds of thousands of source files (Lucene 9.x)
 - **Semantic search** via ONNX embeddings (all-MiniLM-L6-v2) — optional, model file required
 - **Go-to-definition**, **find references**, **class hierarchy**, **call graph** (depth-capped traversal + who-calls-me)
-- **Browser-based UI** with Monaco Editor — no local install required
+- **Browser-based UI** with plain ES6 + highlight.js — no local install, no npm
 - **Multi-tab editor** with live file-change indicators (WebSocket push)
 - **File tree browser** with directory navigation
 - **Breadcrumbs** for package/class context
-- **Quick Open** (Ctrl+P style) for fast file/symbol jump
+- **Quick Open** (Ctrl+P) — fuzzy file/symbol jump dialog with keyboard navigation
 - **Shareable links**: open any file at a specific line/symbol via URL
-- **Git integration**: commit log with author/prefix filtering, side-by-side diffs, branch listing, per-line blame gutter
+- **Git integration**: commit log with author/prefix filtering, multi-mode diffs (unified, side-by-side, inline, word-level), branch listing, per-line blame gutter
 - **JSP parsing**: element extraction, include resolution, taglib URIs
 - **Spring XML parsing**: bean definitions, component-scan paths, imports
 - **J2EE wiring**: web.xml servlet/filter mapping, persistence.xml entities, EJB/DI annotation scanning, DI wiring graph (nodes + edges)
@@ -48,7 +48,7 @@ No code editing/refactoring, compilation/build integration, debugging, or attemp
 | Semantic Search | ONNX Runtime (all-MiniLM-L6-v2) | 1.18.0 |
 | Web Server | Javalin (embedded Jetty) — REST + WebSocket | 5.6.3 |
 | CLI Parsing | Picocli | 4.7.5 |
-| Frontend | Plain ES6 + Monaco Editor (vendored) | Monaco 0.45 |
+| Frontend | Plain ES6 + highlight.js (vendored) | hljs 11.x |
 | Git | JGit (Eclipse) | 6.8.0 |
 | Logging | Logback Classic | 1.5.3 |
 | Build (server) | Maven → single fat JAR (`maven-shade-plugin`) | shade 3.5.1, surefire 3.2.5 |
@@ -165,7 +165,7 @@ mvn test -Dtest=LuceneIndexerTest
    java -jar jolt-server-0.1.0-SNAPSHOT.jar --home /path/to/some-java-project --port 9000
    ```
 
-2. **Open the browser** at `http://localhost:9000` — the Monaco UI loads from the embedded static assets.
+2. **Open the browser** at `http://localhost:9000` — the ES6 UI loads from the embedded static assets.
 
 3. **Exercise the key flows:**
    - **Search**: type in the search bar → results appear with file/line/symbol info. Try both text and symbol-mode search.
@@ -180,6 +180,8 @@ mvn test -Dtest=LuceneIndexerTest
    - **Dashboard**: check the dashboard stats match the indexed class/method counts.
    - **Settings / themes**: switch themes via settings → verify persistence across page reloads.
    - **Quick Open**: press Ctrl+P (or configured shortcut) → type a filename or symbol → jump to it.
+   - **Shareable Links**: open a file → click the 🔗 Link button in the breadcrumb bar → verify the URL contains `?file=...&line=...` → paste that URL into a new tab → the same file/line should open automatically.
+   - **Inline Diff**: open a git commit diff → click the "Inline" toggle → verify single-column view with paired old/new lines and word-level `<ins>` highlights on changed tokens.
 
 4. **API smoke test** (no browser needed):
    ```bash
@@ -207,8 +209,8 @@ mvn test -Dtest=LuceneIndexerTest
    # File tree
    curl "http://localhost:9000/api/file/tree?path=src/main/java"
 
-   # Git log (last 10 commits)
-   curl "http://localhost:9000/api/git/log?count=10"
+   # Git commits (first page, 10 per page)
+   curl "http://localhost:9000/api/git/commits?page=0&size=10"
 
    # Git branches
    curl "http://localhost:9000/api/git/branches"
@@ -270,20 +272,23 @@ Files that fail to parse are gracefully indexed as raw text only; the ingestion 
 
 ### Shareable Links
 
-Every file view generates a canonical URL:
+Every file view generates a canonical URL with file, line, and optional symbol:
 
 ```
 http://explorer.internal/?file=src/com/foo/Bar.java&line=42&symbol=method1
 ```
 
-Paste in Slack, include in commit messages, or use for code review context.
+These links serve two purposes:
+
+- **In Jolt**: opening the URL loads the file at the specified line/symbol directly in the browser viewer.
+- **External editor handoff**: the URL encodes enough context (`file`, `line`, `symbol`) for editor integrations, IDE plugins, or CLI tools to open the exact location in a local editor (e.g. `code --goto file:line`). Paste in Slack, include in commit messages, or use for code review context.
 
 ### Git Review Workflow
 
 Agents identify commits via author name and message prefix (`[agent:name]`). The explorer provides:
 
 - Per-agent change feed (filterable by author, message prefix)
-- Side-by-side diff viewer (Monaco diff editor)
+- Multi-mode diff viewer (unified, side-by-side, inline, word-level highlighting)
 - Commit history with author filtering
 - Per-line blame gutter in the editor
 - Branch listing and current-branch indicator
@@ -337,12 +342,15 @@ All endpoints are under `/api/`. WebSocket endpoint at `/ws`.
 
 | Method | Path | Params | Description |
 |---|---|---|---|
-| GET | `/api/git/log` | `count` (default 30), `author` (optional), `prefix` (optional) | Commit log with optional author-name and message-prefix filtering |
+| GET | `/api/git/stats` | — | Repository stats: total commits, contributors, top committers, current branch, streaks, busiest day |
+| GET | `/api/git/commits` | `page` (default 0), `size` (default 25), `branch`, `author`, `from`, `to` (all optional) | Paginated commit list with optional branch/author/date-range filtering |
+| GET | `/api/git/activity` | `year` (optional, default current) | Activity heatmap data: per-day commit counts for the given year |
 | GET | `/api/git/diff` | `from` (optional), `to` (required) | File-level diff between two commits (or commit vs parent). Returns list of changed files with status. |
 | GET | `/api/git/file-diff` | `from` (optional), `to`, `path` (required) | Unified diff content for a single file between two commits |
 | GET | `/api/git/branches` | — | List all local branches with current-branch indicator |
-| GET | `/api/git/branch` | — | Current branch name |
-| GET | `/api/git/commit` | `hash` (required) | Full commit detail: message, author, date, changed files |
+| GET | `/api/git/commit/enhanced` | `hash` (required) | Full commit detail: message, author, date, parents, per-file stats (added/removed lines, binary flag) |
+| GET | `/api/git/commit/raw` | `hash`, `path` (both required) | Raw file content at a specific commit (supports text and binary) |
+| GET | `/api/git/commit/patch` | `hash` (required) | Downloadable `.patch` file for a commit |
 | GET | `/api/blame` | `path`, `start` (default 1), `end` (default EOF) | Per-line git blame: author, commit hash, date for each line in range. Path-traversal protected. |
 
 ### J2EE / Enterprise
@@ -483,4 +491,4 @@ These files are safe to delete; Jolt will recreate them as needed. The Lucene in
 
 ## Status
 
-> **Phase 1–4 implemented.** Core navigation (search, go-to-definition, references, hierarchy, call graph), JSP/Spring/J2EE parsing, git integration (log, diff, blame, branches), live file watching, bookmarks, settings, dashboard, and the full ES6+Monaco frontend are in place. 14 JUnit test classes cover the server-side components. Semantic search is available but opt-in (requires model file). Multi-project support is not yet implemented.
+> **Phase 1–4 implemented.** Core navigation (search, go-to-definition, references, hierarchy, call graph), JSP/Spring/J2EE parsing, git integration (log, diff, blame, branches), live file watching, bookmarks, settings, dashboard, Quick Open, shareable links, and the full ES6 frontend are in place. 14 JUnit test classes cover the server-side components. Semantic search is available but opt-in (requires model file). Multi-project support is not yet implemented.

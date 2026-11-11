@@ -51,15 +51,49 @@
       <!-- Tab bar -->
       <div class="tab-bar" id="tab-bar" role="tablist"></div>
 
-      <!-- Breadcrumb + Blame toggle -->
+      <!-- Breadcrumb + Blame + Copy Link -->
       <div class="breadcrumb-bar">
         <div class="breadcrumb" id="breadcrumb"></div>
         <button class="blame-toggle" id="blame-toggle" title="Toggle git blame" aria-label="Toggle git blame">Blame</button>
+        <button class="blame-toggle" id="copy-link-btn" title="Copy shareable link" aria-label="Copy shareable link">&#x1F517; Link</button>
       </div>
 
       <!-- Code viewer -->
       <div class="code-viewer" id="code-viewer">
         <div class="welcome">
+          <div class="mascot" aria-hidden="true">
+            <svg viewBox="0 0 120 170" width="120" height="170" xmlns="http://www.w3.org/2000/svg">
+              <!-- Electric sparks -->
+              <line x1="18" y1="38" x2="28" y2="44" stroke="#FFD700" stroke-width="2.5" stroke-linecap="round"/>
+              <line x1="14" y1="55" x2="26" y2="56" stroke="#FFD700" stroke-width="2" stroke-linecap="round"/>
+              <line x1="98" y1="32" x2="92" y2="40" stroke="#FFD700" stroke-width="2.5" stroke-linecap="round"/>
+              <line x1="104" y1="50" x2="94" y2="53" stroke="#FFD700" stroke-width="2" stroke-linecap="round"/>
+              <line x1="60" y1="4" x2="63" y2="-4" stroke="#FFD700" stroke-width="2" stroke-linecap="round"/>
+
+              <!-- Bolt body -->
+              <path d="M68 8 L34 74 L56 74 L44 162 L88 62 L63 62 Z"
+                    fill="#FFD700" stroke="#E6A800" stroke-width="2.5" stroke-linejoin="round"/>
+
+              <!-- Inner highlight -->
+              <path d="M65 18 L40 70 L54 70 L46 130 L78 68 L63 68 Z"
+                    fill="#FFF3B0" opacity="0.35"/>
+
+              <!-- Left eye -->
+              <ellipse cx="49" cy="72" rx="5.5" ry="6.5" fill="#2D1B00"/>
+              <circle cx="51" cy="70" r="2.2" fill="#FFF"/>
+
+              <!-- Right eye -->
+              <ellipse cx="71" cy="72" rx="5.5" ry="6.5" fill="#2D1B00"/>
+              <circle cx="73" cy="70" r="2.2" fill="#FFF"/>
+
+              <!-- Smile -->
+              <path d="M49 84 Q60 94 71 84" fill="none" stroke="#2D1B00" stroke-width="2.5" stroke-linecap="round"/>
+
+              <!-- Cheek blush -->
+              <ellipse cx="42" cy="82" rx="4" ry="2.5" fill="#FF9A56" opacity="0.45"/>
+              <ellipse cx="78" cy="82" rx="4" ry="2.5" fill="#FF9A56" opacity="0.45"/>
+            </svg>
+          </div>
           <div class="welcome-logo">Jolt</div>
           <p class="welcome-sub">Java code explorer &amp; agent output reviewer</p>
           <div class="welcome-hints">
@@ -134,6 +168,14 @@
     </div>
     <div id="inspector-body"></div>
   </aside>
+
+  <!-- Quick Open modal (Ctrl+P) -->
+  <div class="qo-backdrop" id="qo-backdrop">
+    <div class="qo-dialog">
+      <input type="text" id="qo-input" placeholder="Go to file or symbol…" autocomplete="off" spellcheck="false">
+      <div class="qo-list" id="qo-list"></div>
+    </div>
+  </div>
 
   <!-- Feedback modal -->
   <div class="modal-backdrop" id="feedback-modal">

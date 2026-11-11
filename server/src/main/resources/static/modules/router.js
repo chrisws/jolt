@@ -7,8 +7,72 @@ import { renderGitStats, renderCommitList, renderCommitDetail } from './git-page
 const $viewer = document.getElementById('code-viewer');
 
 export function initRouter() {
+  // Handle shareable link query params on initial load: ?file=...&line=...&symbol=...
+  handleShareableLink();
   window.addEventListener('hashchange', route);
   route();
+}
+
+function handleShareableLink() {
+  const params = new URLSearchParams(location.search);
+  const file = params.get('file');
+  const line = params.get('line');
+  const symbol = params.get('symbol');
+
+  if (!file) return;
+
+  // Open the file in a tab
+  import('./tabs.js').then(m => {
+    m.openTab(file);
+    // If line specified, scroll to it after file loads
+    if (line) {
+      setTimeout(() => {
+        const target = document.querySelector('.code-line[data-line="' + line + '"]');
+        if (target) target.scrollIntoView({ block: 'center' });
+      }, 300);
+    }
+  });
+
+  // Clean up query params so refresh doesn't re-trigger
+  const cleanUrl = location.pathname + location.hash;
+  history.replaceState(null, '', cleanUrl);
+}
+
+/** Generate a shareable URL for the current file/line/symbol. */
+export function getShareableUrl(filePath, line, symbol) {
+  const base = location.origin + location.pathname;
+  const params = new URLSearchParams();
+  if (filePath) params.set('file', filePath);
+  if (line) params.set('line', String(line));
+  if (symbol) params.set('symbol', symbol);
+  return base + '?' + params.toString();
+}
+
+/** Copy the current file's shareable URL to clipboard. */
+export async function copyShareableLink() {
+  const { state } = await import('./tabs.js');
+  if (!state.activeTab) return;
+
+  const url = getShareableUrl(state.activeTab);
+  try {
+    await navigator.clipboard.writeText(url);
+    showLinkCopied();
+  } catch (err) {
+    console.error('Clipboard failed:', err);
+  }
+}
+
+function showLinkCopied() {
+  let toast = document.getElementById('link-toast');
+  if (!toast) {
+    toast = document.createElement('div');
+    toast.id = 'link-toast';
+    toast.className = 'link-toast';
+    document.body.appendChild(toast);
+  }
+  toast.textContent = 'Link copied to clipboard';
+  toast.classList.add('visible');
+  setTimeout(() => toast.classList.remove('visible'), 2000);
 }
 
 function route() {

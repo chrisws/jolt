@@ -1,0 +1,123 @@
+/* ── Quick Open (Ctrl+P) ─────────────────────────────── */
+
+const $qoBackdrop = document.getElementById('qo-backdrop');
+const $qoInput   = document.getElementById('qo-input');
+const $qoList    = document.getElementById('qo-list');
+
+let qoItems       = [];
+let qoActive      = -1;
+let qoTimer       = null;
+let qoOpen        = false;
+
+function esc(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+
+export function openQuickOpen() {
+  qoOpen = true;
+  qoItems = [];
+  qoActive = -1;
+  $qoInput.value = '';
+  $qoList.innerHTML = '';
+  $qoBackdrop.classList.add('open');
+  $qoInput.focus();
+}
+
+export function closeQuickOpen() {
+  qoOpen = false;
+  $qoBackdrop.classList.remove('open');
+}
+
+async function doQuickSearch(query) {
+  if (!query || query.length < 1) { $qoList.innerHTML = ''; qoItems = []; return; }
+
+  try {
+    const res = await fetch('/api/search/suggest?q=' + encodeURIComponent(query) + '&limit=15');
+    const results = await res.json();
+    renderQuickResults(results);
+  } catch (err) { console.error('Quick Open search failed:', err); }
+}
+
+function renderQuickResults(results) {
+  $qoList.innerHTML = '';
+  qoItems = [];
+  qoActive = -1;
+
+  if (!results || results.length === 0) {
+    $qoList.innerHTML = '<div class="qo-empty">No matches</div>';
+    return;
+  }
+
+  // Group by kind for visual separation
+  const groups = {};
+  for (const r of results) {
+    const kind = r.kind || 'FILE';
+    if (!groups[kind]) groups[kind] = [];
+    groups[kind].push(r);
+  }
+
+  const order = ['FILE', 'CLASS', 'METHOD', 'FIELD'];
+  for (const kind of order) {
+    const items = groups[kind];
+    if (!items || items.length === 0) continue;
+
+    const header = document.createElement('div');
+    header.className = 'qo-group-header';
+    header.textContent = kind.toLowerCase() + 's';
+    $qoList.appendChild(header);
+
+    for (const r of items) {
+      const el = document.createElement('div');
+      el.className = 'qo-item';
+      el.innerHTML = '<span class="qo-kind qk-' + esc(kind.toLowerCase()) + '">' + esc(kind.charAt(0)) + '</span>' +
+        '<span class="qo-name">' + esc(r.name || r.qualifiedName || '') + '</span>' +
+        '<span class="qo-path">' + esc(r.filePath || '') + '</span>';
+      el.addEventListener('click', () => selectQuickItem(r));
+      $qoList.appendChild(el);
+      qoItems.push({ hit: r, el });
+    }
+  }
+
+  scrollToActive();
+}
+
+function selectQuickItem(hit) {
+  closeQuickOpen();
+  import('./tabs.js').then(m => m.openTab(hit.filePath));
+}
+
+function moveActive(dir) {
+  const navigable = qoItems.filter(item => item.el.classList.contains('qo-item'));
+  if (navigable.length === 0) return;
+
+  qoActive = (qoActive + dir + navigable.length) % navigable.length;
+  navigable.forEach((item, i) => item.el.classList.toggle('active', i === qoActive));
+  scrollToActive();
+}
+
+function scrollToActive() {
+  if (qoActive < 0) return;
+  const navigable = qoItems.filter(item => item.el.classList.contains('qo-item'));
+  if (navigable[qoActive]) navigable[qoActive].el.scrollIntoView({ block: 'nearest' });
+}
+
+export function initQuickOpen() {
+  $qoInput.addEventListener('input', () => {
+    clearTimeout(qoTimer);
+    qoTimer = setTimeout(() => doQuickSearch($qoInput.value), 150);
+  });
+
+  $qoInput.addEventListener('keydown', e => {
+    if (e.key === 'ArrowDown') { e.preventDefault(); moveActive(1); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); moveActive(-1); }
+    else if (e.key === 'Enter') {
+      e.preventDefault();
+      const navigable = qoItems.filter(item => item.el.classList.contains('qo-item'));
+      if (qoActive >= 0 && navigable[qoActive]) selectQuickItem(navigable[qoActive].hit);
+    }
+    else if (e.key === 'Escape') { closeQuickOpen(); }
+  });
+
+  $qoBackdrop.addEventListener('click', e => {
+    if (e.target === $qoBackdrop) closeQuickOpen();
+  });
+}
+
