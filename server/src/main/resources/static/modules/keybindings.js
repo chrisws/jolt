@@ -9,7 +9,7 @@ let vimMode = 'normal'; // normal | insert | visual
 
 /* ── Binding string parser ───────────────────────── */
 
-function parseBinding(str) {
+export function parseBinding(str) {
   const tokens = [];
   const parts = str.split(/\s+/);
 
@@ -22,8 +22,8 @@ function parseBinding(str) {
       continue;
     }
 
-    // Handle modifier+key like C-x, M-f, Alt+f
-    const modMatch = part.match(/^(Ctrl|C|M|Alt)\+?(-|\+)?(.+)$/i);
+    // Handle modifier+key like C-x, M-f, Alt+f (single-char key only)
+    const modMatch = part.match(/^(Ctrl|C|M|Alt)\+?(-|\+)?([a-z0-9])$/i);
     if (modMatch) {
       let mod = modMatch[1].toLowerCase();
       if (mod === 'c') mod = 'ctrl';
@@ -58,7 +58,7 @@ function parseBinding(str) {
 
 /* ── Token matching ──────────────────────────────── */
 
-function tokenMatches(token, e) {
+export function tokenMatches(token, e) {
   const key = e.key.toLowerCase();
 
   if (token.mod) {

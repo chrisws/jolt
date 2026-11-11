@@ -6,6 +6,7 @@
   <title>Jolt</title>
   <link rel="stylesheet" href="hljs/theme-github-dark.css">
   <link rel="stylesheet" href="style.css">
+  <script src="hljs/marked.min.js"></script>
 </head>
 <body>
   <div class="app">
@@ -262,6 +263,99 @@
         ws.onclose = function() { console.log('[jolt-dev] HMR connection closed'); };
       })();
     }
+  </script>
+
+  <!-- Collapsible sidebar sections + Git commits list -->
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      // ── Accordion sidebar sections (one open at a time) ──
+      const $sections = document.querySelectorAll('.sidebar, .sidebar-section');
+      $sections.forEach(section => {
+        const label = section.querySelector('.section-label');
+        if (!label) return;
+        label.addEventListener('click', (e) => {
+          if (e.target.closest('button')) return;
+          // Collapse all sections first
+          $sections.forEach(s => { s.classList.add('collapsed'); s.querySelector('.section-label')?.classList.add('collapsed'); });
+          // Expand the clicked one (if it was collapsed)
+          if (section.classList.contains('collapsed')) {
+            section.classList.remove('collapsed');
+            label.classList.remove('collapsed');
+          } else {
+            // Was already open → collapse it (allow all-closed state)
+            section.classList.add('collapsed');
+            label.classList.add('collapsed');
+          }
+        });
+      });
+
+      // Start with Project open, others collapsed
+      $sections.forEach((s, i) => { if (i > 0) { s.classList.add('collapsed'); s.querySelector('.section-label')?.classList.add('collapsed'); } });
+
+      // ── Git Commits in sidebar ──
+      const $gitList = document.getElementById('git-changes-list');
+      if ($gitList) {
+        loadSidebarCommits();
+      }
+
+      async function loadSidebarCommits() {
+        try {
+          const res = await fetch('/api/git/commits?page=0&size=10');
+          if (!res.ok) return;
+          const data = await res.json();
+
+          let html = '<div class="gc-commits-label">Recent Commits</div>';
+
+          for (const c of (data.commits || [])) {
+            const hash = c.hash ? c.hash.substring(0, 8) : '';
+            const msg = (c.message || c.subject || '').split('\n')[0];
+            const author = c.author || '';
+            html += '<div class="gc-commit-item" data-hash="' + hash + '" title="' + msg.replace(/"/g, '&quot;') + '">';
+            html += '<span class="gc-hash">' + hash + '</span>';
+            html += '<span class="gc-msg">' + msg.replace(/</g, '&lt;') + '</span>';
+            html += '</div>';
+          }
+
+          // "Load more" button if there are more commits
+          if (data.total > 10) {
+            html += '<button class="gc-more-btn" id="gc-load-more">Load more…</button>';
+          }
+
+          $gitList.insertAdjacentHTML('beforeend', html);
+
+          // Wire up commit clicks
+          $gitList.querySelectorAll('.gc-commit-item').forEach(el => {
+            el.addEventListener('click', () => { location.hash = '#/git/commits/' + el.dataset.hash; });
+          });
+
+          // Load more button
+          const moreBtn = document.getElementById('gc-load-more');
+          if (moreBtn) {
+            let page = 1;
+            moreBtn.addEventListener('click', async () => {
+              moreBtn.textContent = 'Loading…';
+              try {
+                const r = await fetch('/api/git/commits?page=' + page + '&size=10');
+                const d = await r.json();
+                for (const c of (d.commits || [])) {
+                  const h = c.hash ? c.hash.substring(0, 8) : '';
+                  const m = (c.message || c.subject || '').split('\n')[0];
+                  const div = document.createElement('div');
+                  div.className = 'gc-commit-item';
+                  div.dataset.hash = h;
+                  div.title = m;
+                  div.innerHTML = '<span class="gc-hash">' + h + '</span><span class="gc-msg">' + m.replace(/</g, '&lt;') + '</span>';
+                  div.addEventListener('click', () => { location.hash = '#/git/commits/' + h; });
+                  moreBtn.before(div);
+                }
+                page++;
+                moreBtn.textContent = 'Load more…';
+              } catch (_) { moreBtn.textContent = 'Load more…'; }
+            });
+          }
+        } catch (_) {}
+      }
+    });
   </script>
 
 </body>

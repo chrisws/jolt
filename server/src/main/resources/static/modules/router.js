@@ -3,6 +3,7 @@ import { loadFile } from './file-viewer.js';
 import { closeSearch } from './search.js';
 import { closeSettings } from './settings.js';
 import { renderGitStats, renderCommitList, renderCommitDetail } from './git-pages.js';
+import { parseRoute, getShareableUrl as buildShareableUrl } from './url-utils.js';
 
 const $viewer = document.getElementById('code-viewer');
 
@@ -71,34 +72,8 @@ function showLinkCopied() {
   setTimeout(() => toast.classList.remove('visible'), 2000);
 }
 
-| '';
-  const parts = hash.replace(/^#\/?/, '').split('/');|| '').replace(/^#\/?/, '').split('/');
-  const page = parts[0] || 'file';
-
-  if (page === 'git') {
-    if (parts.length === 1) return { page: 'git', view: 'stats' };
-    if (parts[1] === 'commits' && parts[2]) return { page: 'git', view: 'commit', hash: parts[2] };
-    if (parts[1] === 'commits') return { page: 'git', view: 'commits', branch: parts.slice(2) };
-    return { page: 'git', view: 'stats' };
-  }
-  if (page === 'dashboard') return { page: 'dashboard' };
-  return { page: 'file' };
-}|import { parseRoute, getShareableUrl as buildShareableUrl } from './url-utils.js';|| '').replace(/^#\/?/, '').split('/');
-  const page = parts[0] || 'file';
-
-  if (page === 'git') {
-    if (parts.length === 1) return { page: 'git', view: 'stats' };
-    if (parts[1] === 'commits' && parts[2]) return { page: 'git', view: 'commit', hash: parts[2] };
-    if (parts[1] === 'commits') return { page: 'git', view: 'commits', branch: parts.slice(2) };
-    return { page: 'git', view: 'stats' };
-  }
-  if (page === 'dashboard') return { page: 'dashboard' };
-  return { page: 'file' };
-}
-
 function route() {
   const hash = location.hash || '';
-  const parts = hash.replace(/^#\/?/, '').split('/');|| '';
   const parts = hash.replace(/^#\/?/, '').split('/');
 
   // Close any open panels

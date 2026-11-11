@@ -32,6 +32,11 @@ export function goForward() {
   import('./tabs.js').then(m => m.openTab(path));
 }
 
+/** Expose internal state for testing. */
+export function getHistoryState() {
+  return { history: [...history], index: historyIndex };
+}
+
 export function initNavHistory() {
   // Add back/forward buttons to breadcrumb bar
   const $bar = document.querySelector('.breadcrumb-bar');

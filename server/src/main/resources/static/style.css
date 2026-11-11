@@ -653,7 +653,6 @@ kbd {
 @media (prefers-reduced-motion: no-preference) {
   .settings-panel { transition: transform 0.2s ease; }
 }
-[KV-INFO] KV Cache
 /* ════════════════════════════════════════════
    GIT PAGES (Stages 3–6)
    ════════════════════════════════════════════ */
@@ -1193,7 +1192,6 @@ kbd {
 .diff-mod { background: rgba(99, 110, 250, 0.08); }
 .inline-diff .diff-line { font-family: monospace; font-size: 13px; }
 
-[KV-INFO] KV Cache:
 /* ── File tree: toggle arrows & controls ─────── */
 .tree-toggle {
   display: inline-flex;
@@ -1257,3 +1255,117 @@ kbd {
 .divider:hover, .divider.dragging { background: var(--accent); }
 
 body.resizing { cursor: col-resize; user-select: none; }
+
+/* ── Markdown Rendered View ─────────────────────── */
+
+.md-rendered {
+  padding: 24px 32px;
+  line-height: 1.7;
+  font-size: 15px;
+  max-width: 860px;
+}
+
+.md-rendered h1 { font-size: 1.8em; margin: 1.2em 0 0.6em; border-bottom: 1px solid var(--border, #30363d); padding-bottom: 0.3em; }
+.md-rendered h2 { font-size: 1.5em; margin: 1.1em 0 0.5em; border-bottom: 1px solid var(--border, #30363d); padding-bottom: 0.25em; }
+.md-rendered h3 { font-size: 1.25em; margin: 1em 0 0.4em; }
+.md-rendered h4 { font-size: 1.1em; margin: 0.9em 0 0.35em; }
+
+.md-rendered p { margin: 0.8em 0; }
+
+.md-rendered code {
+  background: rgba(110, 118, 129, 0.15);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 0.9em;
+}
+
+.md-rendered pre {
+  background: rgba(110, 118, 129, 0.1);
+  padding: 14px 18px;
+  border-radius: 6px;
+  overflow-x: auto;
+}
+
+.md-rendered pre code {
+  background: none;
+  padding: 0;
+}
+
+.md-rendered ul, .md-rendered ol { padding-left: 2em; margin: 0.7em 0; }
+.md-rendered li { margin: 0.3em 0; }
+
+.md-rendered blockquote {
+  border-left: 3px solid var(--accent, #58a6ff);
+  margin: 0.8em 0;
+  padding: 0.4em 1em;
+  color: var(--fg-dim, #8b949e);
+}
+
+.md-rendered table { border-collapse: collapse; width: 100%; margin: 1em 0; }
+.md-rendered th, .md-rendered td { border: 1px solid var(--border, #30363d); padding: 8px 12px; text-align: left; }
+.md-rendered th { background: rgba(110, 118, 129, 0.1); }
+
+.md-rendered a { color: var(--accent, #58a6ff); text-decoration: none; }
+.md-rendered a:hover { text-decoration: underline; }
+
+.md-rendered img { max-width: 100%; border-radius: 6px; }
+
+.md-rendered hr { border: none; border-top: 2px solid var(--border, #30363d); margin: 1.5em 0; }
+
+[KV-INFO] KV Cache:
+/* ── Collapsible Sidebar Sections ─────────────────── */
+
+.sidebar .section-label,
+.sidebar-section .section-label {
+  cursor: pointer;
+  user-select: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.sidebar .section-label::before,
+.sidebar-section .section-label::before {
+  content: '\25B6';
+  font-size: 9px;
+  transition: transform 0.15s ease;
+}
+
+.sidebar .section-label.collapsed::before,
+.sidebar-section .section-label.collapsed::before {
+  transform: rotate(0deg);
+}
+
+.sidebar .section-label:not(.collapsed)::before,
+.sidebar-section .section-label:not(.collapsed)::before {
+  transform: rotate(90deg);
+}
+
+.sidebar-section.collapsed > :not(.section-label) {
+  display: none;
+}
+
+.tree-header .tree-controls { margin-left: auto; }
+
+[KV-INFO] KV Cache
+/* ── Sidebar Git Commits ──────────────────────────── */
+
+.gc-commits-label { font-size: 11px; color: var(--fg-dim, #6c7086); padding: 8px 12px 4px; text-transform: uppercase; letter-spacing: 0.5px; }
+
+.gc-commit-item { display: flex; align-items: center; gap: 8px; padding: 5px 12px; cursor: pointer; font-size: 12px; border-radius: 4px; margin: 1px 4px; }
+.gc-commit-item:hover { background: rgba(88, 166, 255, 0.08); }
+
+.gc-hash { font-family: monospace; font-size: 11px; color: var(--accent, #58a6ff); flex-shrink: 0; }
+.gc-msg { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--fg, #e6edf3); }
+
+.gc-more-btn { display: block; width: calc(100% - 8px); margin: 6px 4px; padding: 5px; background: none; border: 1px solid var(--border, #30363d); border-radius: 4px; color: var(--fg-dim, #6c7086); font-size: 11px; cursor: pointer; }
+.gc-more-btn:hover { background: rgba(88, 166, 255, 0.08); color: var(--fg, #e6edf3); }
+
+.git-change-item { display: flex; align-items: center; gap: 6px; padding: 4px 12px; cursor: pointer; font-size: 12px; border-radius: 4px; margin: 1px 4px; }
+.git-change-item:hover { background: rgba(88, 166, 255, 0.08); }
+.gc-dot { width: 7px; height: 7px; border-radius: 50%; background: #f0883e; flex-shrink: 0; }
+.gc-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.empty-hint { padding: 8px 12px; font-size: 11px; color: var(--fg-dim, #6c7086); font-style: italic; }
+
+[KV-INFO] KV Cache

@@ -44,6 +44,7 @@ async function loadDir(dirPath, target, depth) {
           if (!isExpanded && !loaded) {
             // First expand: fetch children into the container
             loaded = true;
+            el.dataset.loaded = 'true';
             await loadDir(e.path, childContainer, depth + 1);
           }
 
@@ -79,17 +80,23 @@ function collapseAll() {
   $fileTree.querySelectorAll('.tree-toggle').forEach(t => { t.classList.remove('expanded'); });
 }
 
-function expandAll() {
-  // Expand all directories that already have loaded children
+async function expandAll() {
+  // Expand all directories, fetching children for those not yet loaded
   const dirs = $fileTree.querySelectorAll('.tree-item[data-path]');
-  dirs.forEach(dir => {
+  for (const dir of dirs) {
     const next = dir.nextElementSibling;
     if (next && next.classList.contains('tree-children')) {
+      if (!dir.dataset.loaded) {
+        dir.dataset.loaded = 'true';
+        // Determine depth from padding-left
+        const depth = Math.round((parseInt(dir.style.paddingLeft) - 8) / 16);
+        await loadDir(dir.dataset.path, next, depth + 1);
+      }
       next.style.display = 'block';
       const arrow = dir.querySelector('.tree-toggle');
       if (arrow) { arrow.classList.add('expanded'); }
     }
-  });
+  }
 }
 
 export async function loadFileTree() {

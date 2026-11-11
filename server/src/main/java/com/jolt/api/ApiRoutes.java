@@ -823,7 +823,7 @@ String branch = ctx.body();
     log.info("API routes registered");
   }
 
-   private static String detectLanguage(String path) {
+  static String detectLanguage(String path) {
     if (path.endsWith(".java")) return "java";
     if (path.endsWith(".xml")) return "xml";
     if (path.endsWith(".jsp")) return "jsp";
@@ -834,6 +834,21 @@ String branch = ctx.body();
     if (path.endsWith(".kt") || path.endsWith(".kts")) return "kotlin";
     if (path.endsWith(".groovy") || path.endsWith(".gvy")) return "groovy";
     if (path.endsWith(".md")) return "markdown";
+    if (path.endsWith(".cpp") || path.endsWith(".cc") || path.endsWith(".cxx")
+        || path.endsWith(".hpp") || path.endsWith(".hxx")) {
+      return "cpp";
+    }
+    if (path.endsWith(".h")) return "cpp";
+    if (path.endsWith(".c")) return "c";
+    if (path.endsWith(".py")) return "python";
+    if (path.endsWith(".js") || path.endsWith(".mjs")) return "javascript";
+    if (path.endsWith(".ts") || path.endsWith(".tsx")) return "typescript";
+    if (path.endsWith(".html") || path.endsWith(".htm")) return "html";
+    if (path.endsWith(".css")) return "css";
+    if (path.endsWith(".json")) return "json";
+    if (path.endsWith(".toml")) return "toml";
+    String fileName = path.substring(path.lastIndexOf('/') + 1).toLowerCase();
+    if (fileName.startsWith("dockerfile")) return "dockerfile";
     return "";
   }
 

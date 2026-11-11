@@ -3,15 +3,24 @@ const $crumb   = document.getElementById('breadcrumb');
 
 function esc(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
 
+let _mdMode = 'rendered'; // 'raw' | 'rendered'
+
 export async function loadFile(path) {
   try {
     const res = await fetch('/api/file?path=' + encodeURIComponent(path));
     if (!res.ok) throw new Error('HTTP ' + res.status);
     const data = await res.json();
-    renderCode(data.content, data.language);
+
+    if (data.language === 'markdown') {
+      renderMarkdown(data.content, path);
+    } else {
+      renderCode(data.content, data.language);
+      hideMdToggle();
+    }
+
     renderBreadcrumb(path);
 
-    // Click line number → report issue with that code line
+    // Click line number → report issue with that code line (raw mode only)
     $viewer.querySelectorAll('.line-num').forEach(el => {
       el.style.cursor = 'pointer';
       el.title = 'Report issue on this line';
@@ -24,6 +33,43 @@ export async function loadFile(path) {
   } catch (err) {
     $viewer.innerHTML = '<div class="empty-state"><span>Failed: ' + esc(err.message) + '</span></div>';
   }
+}
+
+function renderMarkdown(content, path) {
+  showMdToggle();
+
+  if (_mdMode === 'rendered') {
+    const html = marked.parse(content);
+    $viewer.innerHTML = '<div class="md-rendered">' + html + '</div>';
+  } else {
+    renderCode(content, 'markdown');
+  }
+}
+
+function showMdToggle() {
+  let btn = document.getElementById('md-toggle-btn');
+  if (!btn) {
+    btn = document.createElement('button');
+    btn.id = 'md-toggle-btn';
+    btn.className = 'blame-toggle';
+    btn.title = 'Toggle raw/rendered markdown';
+    document.querySelector('.breadcrumb-bar').insertBefore(btn, document.getElementById('blame-toggle'));
+
+    btn.addEventListener('click', () => {
+      _mdMode = _mdMode === 'rendered' ? 'raw' : 'rendered';
+      btn.textContent = _mdMode === 'rendered' ? 'Raw' : 'Rendered';
+      // Re-render current file
+      const activeTab = document.querySelector('.tab.active')?.dataset.path;
+      if (activeTab) loadFile(activeTab);
+    });
+  }
+  btn.style.display = '';
+  btn.textContent = _mdMode === 'rendered' ? 'Raw' : 'Rendered';
+}
+
+function hideMdToggle() {
+  const btn = document.getElementById('md-toggle-btn');
+  if (btn) btn.style.display = 'none';
 }
 
 export function renderCode(content, language) {

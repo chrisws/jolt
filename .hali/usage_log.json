@@ -1,19 +1,22 @@
 {
-  "total_turns": 4,
-  "total_llm_ms": 517136,
-  "total_tool_calls": 70,
+  "total_turns": 7,
+  "total_llm_ms": 1.18629e+06,
+  "total_tool_calls": 106,
   "total_tool_errors": 1,
-  "peak_kv_pct": 79.8004,
-  "total_tokens": 21099,
-  "cumulative_tokens": 960546,
-  "cumulative_tool_calls": 2354,
-  "cumulative_tool_errors": 120,
-  "cumulative_turns": 150,
-  "cumulative_llm_ms": 3.06595e+07,
+  "peak_kv_pct": 84.053,
+  "total_tokens": 37432,
+  "cumulative_tokens": 1043953,
+  "cumulative_tool_calls": 2561,
+  "cumulative_tool_errors": 127,
+  "cumulative_turns": 169,
+  "cumulative_llm_ms": 3.29753e+07,
   "turns": [
-    {"turn": 1, "llm_ms": 18460.8, "tokens": 692, "tool_calls": 3, "tool_errors": 1, "kv_pct": 12.1857, "files_read": 2, "files_written": 0},
-    {"turn": 2, "llm_ms": 34924.5, "tokens": 1639, "tool_calls": 3, "tool_errors": 0, "kv_pct": 17.276, "files_read": 2, "files_written": 0},
-    {"turn": 3, "llm_ms": 23381.5, "tokens": 1094, "tool_calls": 2, "tool_errors": 0, "kv_pct": 20.0775, "files_read": 1, "files_written": 1},
-    {"turn": 4, "llm_ms": 440369, "tokens": 17674, "tool_calls": 62, "tool_errors": 0, "kv_pct": 79.8004, "files_read": 36, "files_written": 21}
+    {"turn": 1, "llm_ms": 133542, "tokens": 5792, "tool_calls": 25, "tool_errors": 0, "kv_pct": 29.3472, "files_read": 21, "files_written": 0},
+    {"turn": 2, "llm_ms": 7019.93, "tokens": 309, "tool_calls": 1, "tool_errors": 0, "kv_pct": 30.304, "files_read": 1, "files_written": 0},
+    {"turn": 3, "llm_ms": 17581.8, "tokens": 830, "tool_calls": 2, "tool_errors": 0, "kv_pct": 31.7978, "files_read": 0, "files_written": 2},
+    {"turn": 4, "llm_ms": 340939, "tokens": 13944, "tool_calls": 31, "tool_errors": 0, "kv_pct": 82.6736, "files_read": 15, "files_written": 14},
+    {"turn": 5, "llm_ms": 20777.2, "tokens": 810, "tool_calls": 1, "tool_errors": 0, "kv_pct": 84.053, "files_read": 0, "files_written": 1},
+    {"turn": 6, "llm_ms": 177307, "tokens": 5760, "tool_calls": 18, "tool_errors": 0, "kv_pct": 20.6482, "files_read": 6, "files_written": 5},
+    {"turn": 7, "llm_ms": 489123, "tokens": 9987, "tool_calls": 28, "tool_errors": 1, "kv_pct": 58.8394, "files_read": 13, "files_written": 6}
   ]
 }
