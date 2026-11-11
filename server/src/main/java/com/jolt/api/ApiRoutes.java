@@ -472,19 +472,7 @@ public class ApiRoutes {
       }
     });
 
-    // --- Git Log ---
-    routes.get("/api/git/log", ctx -> {
-      int count = 30;
-      try { count = Integer.parseInt(ctx.queryParam("count")); } catch (Exception ignored) {}
 
-      String author = ctx.queryParam("author");
-      String prefix = ctx.queryParam("prefix");
-
-      List<Map<String, Object>> commits = gitSvc.log(count, author, prefix);
-      ctx.json(commits);
-    });
-
-    // --- Git Diff (file list) ---
     routes.get("/api/git/diff", ctx -> {
       String from = ctx.queryParam("from"); // optional — if null, diff commit vs parent
       String to = ctx.queryParam("to");     // required — the commit to diff at
@@ -514,20 +502,6 @@ public class ApiRoutes {
       ctx.json(branches);
     });
 
-    // --- Git Current Branch ---
-    routes.get("/api/git/branch", ctx -> {
-      String branch = gitSvc.currentBranch();
-      ctx.json(Map.of("branch", branch));
-    });
-
-    // --- Git Commit Detail ---
-    routes.get("/api/git/commit", ctx -> {
-      String hash = ctx.queryParam("hash");
-      if (hash == null || hash.isBlank()) { ctx.status(400).result("Missing 'hash' parameter"); return; }
-
-      Map<String, Object> detail = gitSvc.commitDetail(hash);
-      ctx.json(detail);
-    });
 
     // --- Bookmarks ---
     var bookmarksSvc = new BookmarksService(homeDir);
@@ -706,24 +680,6 @@ public class ApiRoutes {
       ctx.result(patch);
     });
 
-    // --- Dev: live-reload timestamp ---
-    routes.get("/api/dev/mtime", ctx -> {
-      Path staticDir = homeDir.resolve("server/src/main/resources/static");
-      if (!Files.exists(staticDir)) {
-        // Fallback: check classpath static dir (when running from JAR)
-        staticDir = Path.of("src/main/resources/static");
-      }
-      long maxMtime = 0;
-      try (var stream = Files.walk(staticDir)) {
-        maxMtime = stream.filter(Files::isRegularFile)
-            .mapToLong(p -> {
-              try { return Files.getLastModifiedTime(p).toMillis(); }
-              catch (Exception ex) { return 0L; }
-            })
-            .max().orElse(0);
-      } catch (Exception e) { /* return 0 */ }
-      ctx.json(Map.of("mtime", maxMtime));
-    });
 
     log.info("API routes registered");
   }

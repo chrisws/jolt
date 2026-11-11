@@ -37,10 +37,11 @@ public String getFqn() {
 
 ```
 
-## Depenency documents
+## Dependency references
 
-- look in the docs folder for depenency details about jdt, jgit
-- ask the user to clone more repos if you require further specific details
+- Reference repos (javalin, eclipse.jdt.ls, jgit) live in `~/github` — an allowed read-only folder
+- Use them to look up API signatures, usage patterns, and examples when writing code against those libraries
+- If you need a library not yet cloned there, ask the user to add it to `~/github`
 
 
 ## Repository Structure
@@ -61,7 +62,6 @@ jolt/
 │   └── pom.xml                # maven-shade-plugin → target/jolt.jar
 ├── web/                       # Plain ES6 frontend with vendored JS libs (embedded in JAR)
 ├── tests/                     # Server and web test suites
-├── docs/                      # Architecture, API reference, deployment guide
 └── plans/java-code-explorer.md  # Full technical plan
 ```
 

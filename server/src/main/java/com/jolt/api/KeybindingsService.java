@@ -42,14 +42,24 @@ public class KeybindingsService {
         binding("Ctrl+Shift+A", "open_agent_changes"),
         binding("Ctrl+Tab", "next_tab"),
         binding("Ctrl+W", "close_tab"),
-        binding("Esc", "close_panel")
+        binding("Esc", "close_panel"),
+
+        // J2EE project-wide parsers
+        binding("Ctrl+Alt+B", "j2ee_webxml"),
+        binding("Ctrl+Alt+E", "j2ee_persistence"),
+        binding("Ctrl+Alt+N", "j2ee_annotations"),
+        binding("Ctrl+Alt+W", "j2ee_wiring_graph")
     ));
 
     bindings.put("editor", List.of(
         binding("Ctrl+Click", "go_to_definition"),
         binding("Alt+F7", "find_references"),
         binding("Ctrl+H", "show_hierarchy"),
-        binding("Ctrl+G", "show_call_graph")
+        binding("Ctrl+G", "show_call_graph"),
+
+        // File-specific parsers (use active tab)
+        binding("Ctrl+Shift+J", "parse_jsp"),
+        binding("Ctrl+Shift+S", "parse_spring")
     ));
 
     return wrapBindings(bindings);

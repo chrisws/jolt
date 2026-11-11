@@ -15,16 +15,35 @@
       <span class="logo">Jolt</span>
       <div class="search-box">
         <input type="text" id="search-input" placeholder="Search code…  (Ctrl+Shift+F)" autocomplete="off">
+        <button class="semantic-toggle" id="semantic-toggle" title="Toggle semantic search" aria-label="Toggle semantic search">&#x2728;</button>
         <div class="suggest-dropdown" id="suggest-dropdown" role="listbox"></div>
       </div>
+      <button class="feedback-btn" id="feedback-btn" title="Report issue" aria-label="Report issue">&#x1F41B;</button>
       <button class="settings-btn" id="settings-btn" title="Settings" aria-label="Settings">&#x2699;</button>
     </header>
 
-    <!-- Sidebar: file tree -->
-    <nav class="sidebar" id="file-tree" aria-label="File tree">
-      <div class="section-label">Project</div>
-      <!-- populated by app.js -->
-    </nav>
+    <!-- Sidebar container -->
+    <div class="sidebar-container">
+
+      <!-- File tree -->
+      <nav class="sidebar" id="file-tree" aria-label="File tree">
+        <div class="section-label">Project</div>
+        <!-- populated by app.js -->
+      </nav>
+
+      <!-- Bookmarks -->
+      <nav class="sidebar-section" id="bookmark-section" aria-label="Bookmarks">
+        <div class="section-label">Bookmarks</div>
+        <div id="bookmark-list"></div>
+      </nav>
+
+      <!-- Recent files -->
+      <nav class="sidebar-section" id="recent-section" aria-label="Recent files">
+        <div class="section-label">Recent</div>
+        <div id="recent-list"></div>
+      </nav>
+
+    </div>
 
     <!-- Main: tabs + breadcrumb + code viewer -->
     <main class="main">
@@ -32,8 +51,11 @@
       <!-- Tab bar -->
       <div class="tab-bar" id="tab-bar" role="tablist"></div>
 
-      <!-- Breadcrumb -->
-      <div class="breadcrumb" id="breadcrumb"></div>
+      <!-- Breadcrumb + Blame toggle -->
+      <div class="breadcrumb-bar">
+        <div class="breadcrumb" id="breadcrumb"></div>
+        <button class="blame-toggle" id="blame-toggle" title="Toggle git blame" aria-label="Toggle git blame">Blame</button>
+      </div>
 
       <!-- Code viewer -->
       <div class="code-viewer" id="code-viewer">
@@ -56,7 +78,11 @@
   <aside class="search-panel" id="search-panel" aria-label="Search results">
     <div class="panel-header">
       <strong>Results</strong>
+      <button id="search-history-btn" title="Search history" aria-label="Search history">&#x231A;</button>
       <button id="search-close" aria-label="Close search">&times;</button>
+    </div>
+    <div class="search-history" id="search-history">
+      <div id="search-history-list"></div>
     </div>
     <div id="search-results"></div>
   </aside>
@@ -100,27 +126,57 @@
     <div class="settings-saved-msg" id="settings-saved-msg"></div>
   </aside>
 
-  <script src="hljs/highlight.min.js"></script>
-  <script src="app.js"></script>
+  <!-- Inspector panel (navigation results: definition, references, hierarchy, call graph) -->
+  <aside class="inspector-panel" id="inspector-panel" aria-label="Inspector">
+    <div class="panel-header">
+      <strong id="inspector-title">Inspector</strong>
+      <button id="inspector-close" aria-label="Close inspector">&times;</button>
+    </div>
+    <div id="inspector-body"></div>
+  </aside>
 
-  <!-- Dev live-reload: active only when ?dev is in the URL -->
+  <!-- Feedback modal -->
+  <div class="modal-backdrop" id="feedback-modal">
+    <div class="modal-content">
+      <div class="panel-header">
+        <strong>Report an Issue</strong>
+        <button id="feedback-close" aria-label="Close">&times;</button>
+      </div>
+      <form id="feedback-form">
+        <div class="setting-row">
+          <label for="fb-page">Page</label>
+          <input type="text" id="fb-page" readonly>
+        </div>
+        <div class="setting-row">
+          <label for="fb-file">File</label>
+          <input type="text" id="fb-file" placeholder="(optional)">
+        </div>
+        <div class="setting-row">
+          <label for="fb-message">Message</label>
+          <textarea id="fb-message" rows="4" placeholder="Describe the issue…"></textarea>
+        </div>
+        <button type="submit" class="settings-save-btn">Submit</button>
+      </form>
+      <div id="fb-status"></div>
+    </div>
+  </div>
+
+  <script src="hljs/highlight.min.js"></script>
+  <script type="module" src="app.js"></script>
+
+  <!-- Dev live-reload via WebSocket HMR: active only when ?dev is in the URL -->
   <script>
     if (new URLSearchParams(location.search).has('dev')) {
       (function() {
-        let lastMtime = 0;
-        async function poll() {
-          try {
-            const res = await fetch('/api/dev/mtime');
-            const data = await res.json();
-            if (lastMtime && data.mtime !== lastMtime) {
-              console.log('[jolt-dev] Static files changed, reloading…');
-              location.reload();
-            }
-            lastMtime = data.mtime;
-          } catch (_) {}
-          setTimeout(poll, 2000);
-        }
-        poll();
+        const ws = new WebSocket('ws://' + location.host + '/ws/hmr');
+        ws.onmessage = function(e) {
+          var data = JSON.parse(e.data);
+          if (data.type === 'reload') {
+            console.log('[jolt-dev] File changed, reloading…');
+            location.reload();
+          }
+        };
+        ws.onclose = function() { console.log('[jolt-dev] HMR connection closed'); };
       })();
     }
   </script>
