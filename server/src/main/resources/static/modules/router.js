@@ -41,11 +41,7 @@ function handleShareableLink() {
 /** Generate a shareable URL for the current file/line/symbol. */
 export function getShareableUrl(filePath, line, symbol) {
   const base = location.origin + location.pathname;
-  const params = new URLSearchParams();
-  if (filePath) params.set('file', filePath);
-  if (line) params.set('line', String(line));
-  if (symbol) params.set('symbol', symbol);
-  return base + '?' + params.toString();
+  return buildShareableUrl(base, filePath, line, symbol);
 }
 
 /** Copy the current file's shareable URL to clipboard. */
@@ -75,8 +71,34 @@ function showLinkCopied() {
   setTimeout(() => toast.classList.remove('visible'), 2000);
 }
 
+| '';
+  const parts = hash.replace(/^#\/?/, '').split('/');|| '').replace(/^#\/?/, '').split('/');
+  const page = parts[0] || 'file';
+
+  if (page === 'git') {
+    if (parts.length === 1) return { page: 'git', view: 'stats' };
+    if (parts[1] === 'commits' && parts[2]) return { page: 'git', view: 'commit', hash: parts[2] };
+    if (parts[1] === 'commits') return { page: 'git', view: 'commits', branch: parts.slice(2) };
+    return { page: 'git', view: 'stats' };
+  }
+  if (page === 'dashboard') return { page: 'dashboard' };
+  return { page: 'file' };
+}|import { parseRoute, getShareableUrl as buildShareableUrl } from './url-utils.js';|| '').replace(/^#\/?/, '').split('/');
+  const page = parts[0] || 'file';
+
+  if (page === 'git') {
+    if (parts.length === 1) return { page: 'git', view: 'stats' };
+    if (parts[1] === 'commits' && parts[2]) return { page: 'git', view: 'commit', hash: parts[2] };
+    if (parts[1] === 'commits') return { page: 'git', view: 'commits', branch: parts.slice(2) };
+    return { page: 'git', view: 'stats' };
+  }
+  if (page === 'dashboard') return { page: 'dashboard' };
+  return { page: 'file' };
+}
+
 function route() {
   const hash = location.hash || '';
+  const parts = hash.replace(/^#\/?/, '').split('/');|| '';
   const parts = hash.replace(/^#\/?/, '').split('/');
 
   // Close any open panels

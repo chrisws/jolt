@@ -15,22 +15,12 @@ let wholeWord       = false; // true → whole-word matching
 
 function esc(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
 
-function buildSearchUrl(query) {
-  let url;
-  if (semanticMode) {
-    url = '/api/search/semantic?q=' + encodeURIComponent(query);
-  } else {
-    url = '/api/search?q=' + encodeURIComponent(query);
-  }
-  if (caseSensitive) url += '&cs=1';
-  if (wholeWord) url += '&ww=1';
-  return url;
-}
+import { buildSearchUrl } from './url-utils.js';
 
 async function doSearch(query) {
   if (!query || query.length < 2) return;
   try {
-    const url = buildSearchUrl(query);
+    const url = buildSearchUrl(query, { semantic: semanticMode, caseSensitive, wholeWord });
     const res = await fetch(url);
 
     // Graceful 503 fallback — embedding model not loaded
