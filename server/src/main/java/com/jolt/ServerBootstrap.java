@@ -19,7 +19,9 @@
 package com.jolt;
 
  import com.jolt.api.ApiRoutes;
+ import com.jolt.api.SettingsService;
  import com.jolt.api.WsHub;
+ import com.jolt.debug.DebugManager;
  import com.jolt.index.EmbeddingService;
  import com.jolt.index.LuceneIndexer;
  import com.jolt.model.ClassSymbol;
@@ -162,6 +164,14 @@ package com.jolt;
      wsHub.register(app);
 
      ApiRoutes routes = new ApiRoutes(symbolTable, indexer, homeDir, callGraph, embedder);
+
+     // Settings service (shared by debug manager and API routes)
+     SettingsService settingsService = new SettingsService(homeDir);
+
+     // Debug manager (JDB for Java, GDB for C++)
+     DebugManager debugMgr = new DebugManager(homeDir, settingsService);
+     routes.setDebugManager(debugMgr);
+
      routes.register(app);
 
      // File watcher → broadcast changes via WebSocket  
@@ -181,6 +191,7 @@ package com.jolt;
       try {
         app.stop();
         fileWatcher.close();
+        debugMgr.shutdown();
         indexer.close();
         log.info("Clean shutdown complete");
       } catch (Exception e) {

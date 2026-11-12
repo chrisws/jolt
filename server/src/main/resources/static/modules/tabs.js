@@ -10,6 +10,7 @@ function esc(s) { const d = document.createElement('div'); d.textContent = s; re
 
 function emptyState() {
   return '<div class="welcome">' +
+    '<div class="mascot" aria-hidden="true"><svg viewBox="0 0 120 170" width="80" height="113" xmlns="http://www.w3.org/2000/svg"><path d="M68 8 L34 74 L56 74 L44 162 L88 62 L63 62 Z" fill="#FFD700" stroke="#E6A800" stroke-width="2.5" stroke-linejoin="round"/></svg></div>' +
     '<div class="welcome-logo">Jolt</div>' +
     '<p class="welcome-sub">Java code explorer &amp; agent output reviewer</p>' +
     '<div class="welcome-hints">' +

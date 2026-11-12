@@ -18,7 +18,9 @@
 
 package com.jolt.api;
 
- import com.jolt.git.BlameService;
+ import com.jolt.debug.DebugManager;
+import com.jolt.debug.DebugSession;
+import com.jolt.git.BlameService;
 import com.jolt.git.GitService;
 import com.jolt.index.EmbeddingService;
 import com.jolt.index.LuceneIndexer;
@@ -56,6 +58,9 @@ private EmbeddingService embedder; // nullable — null if model file missing
   private final GitService gitSvc;
   private final SettingsService settingsSvc;
   private final KeybindingsService keybindingsSvc;
+  private DebugManager debugMgr; // nullable — set via setDebugManager()
+
+  public void setDebugManager(DebugManager mgr) { this.debugMgr = mgr; }
 
   public ApiRoutes(SymbolTable symbolTable, LuceneIndexer indexer, Path homeDir, CallGraph callGraph, EmbeddingService embedder) {
     this.symbolTable = symbolTable;
@@ -838,7 +843,153 @@ String branch = ctx.body();
     });
 
 
+    // --- Debug ---
+    registerDebugRoutes(app);
+
     log.info("API routes registered");
+  }
+
+  private void registerDebugRoutes(Javalin app) {
+    var routes = app.unsafe.routes;
+    // Start a debug session (launch or attach)
+    routes.post("/api/debug/start", ctx -> {
+      if (debugMgr == null) { ctx.status(503).json(Map.of("error", "Debug not available")); return; }
+
+      Map<String, Object> body = ctx.bodyAsClass(Map.class);
+      String language = body.getOrDefault("language", "java").toString();
+      String target = body.getOrDefault("target", "").toString();
+      int pid = body.get("pid") instanceof Number n ? n.intValue() : -1;
+      @SuppressWarnings("unchecked")
+      List<String> args = (List<String>) body.getOrDefault("args", List.of());
+
+      // Attach mode: pid required, target optional
+      // Launch mode: target required, pid ignored
+      if (pid <= 0 && target.isBlank()) {
+        ctx.status(400).json(Map.of("error", "Missing 'target' (or 'pid' for attach mode)"));
+        return;
+      }
+
+      try {
+        DebugSession session = debugMgr.startSession(language, target, args, pid);
+        ctx.json(session.stateMap());
+      } catch (Exception e) {
+        log.error("Debug start failed: {}", e.getMessage(), e);
+        ctx.status(500).json(Map.of("error", e.getMessage()));
+      }
+    });
+
+    // Toggle breakpoint
+    routes.post("/api/debug/breakpoint", ctx -> {
+      if (debugMgr == null) { ctx.status(503).json(Map.of("error", "Debug not available")); return; }
+
+      Map<String, Object> body = ctx.bodyAsClass(Map.class);
+      String sessionId = body.getOrDefault("sessionId", "").toString();
+      String filePath = body.getOrDefault("filePath", "").toString();
+      int line = ((Number) body.getOrDefault("line", 0)).intValue();
+
+      DebugSession session = debugMgr.getSession(sessionId);
+      if (session == null) { ctx.status(404).json(Map.of("error", "Session not found")); return; }
+
+      try {
+        boolean ok = session.setBreakpoint(filePath, line);
+        ctx.json(Map.of("ok", ok, "breakpoints", session.breakpoints()));
+      } catch (Exception e) {
+        ctx.status(500).json(Map.of("error", e.getMessage()));
+      }
+    });
+
+    // Step over/into/out
+    routes.post("/api/debug/step", ctx -> {
+      if (debugMgr == null) { ctx.status(503).json(Map.of("error", "Debug not available")); return; }
+
+      Map<String, Object> body = ctx.bodyAsClass(Map.class);
+      String sessionId = body.getOrDefault("sessionId", "").toString();
+      String mode = body.getOrDefault("mode", "over").toString();
+
+      DebugSession session = debugMgr.getSession(sessionId);
+      if (session == null) { ctx.status(404).json(Map.of("error", "Session not found")); return; }
+
+      try {
+        switch (mode) {
+          case "into" -> session.stepInto();
+          case "out" -> session.stepOut();
+          default -> session.stepOver();
+        }
+        ctx.json(Map.of("ok", true));
+      } catch (Exception e) {
+        ctx.status(500).json(Map.of("error", e.getMessage()));
+      }
+    });
+
+    // Continue execution
+    routes.post("/api/debug/continue", ctx -> {
+      if (debugMgr == null) { ctx.status(503).json(Map.of("error", "Debug not available")); return; }
+
+      String sessionId = ctx.bodyAsClass(Map.class).getOrDefault("sessionId", "").toString();
+      DebugSession session = debugMgr.getSession(sessionId);
+      if (session == null) { ctx.status(404).json(Map.of("error", "Session not found")); return; }
+
+      try {
+        session.continueExecution();
+        ctx.json(Map.of("ok", true));
+      } catch (Exception e) {
+        ctx.status(500).json(Map.of("error", e.getMessage()));
+      }
+    });
+
+    // Pause execution
+    routes.post("/api/debug/pause", ctx -> {
+      if (debugMgr == null) { ctx.status(503).json(Map.of("error", "Debug not available")); return; }
+
+      String sessionId = ctx.bodyAsClass(Map.class).getOrDefault("sessionId", "").toString();
+      DebugSession session = debugMgr.getSession(sessionId);
+      if (session == null) { ctx.status(404).json(Map.of("error", "Session not found")); return; }
+
+      try {
+        session.pause();
+        ctx.json(Map.of("ok", true));
+      } catch (Exception e) {
+        ctx.status(500).json(Map.of("error", e.getMessage()));
+      }
+    });
+
+    // Inspect variables
+    routes.get("/api/debug/variables", ctx -> {
+      if (debugMgr == null) { ctx.status(503).json(Map.of("error", "Debug not available")); return; }
+
+      String sessionId = ctx.queryParam("sessionId");
+      int frame = 0;
+      try { frame = Integer.parseInt(ctx.queryParam("frame")); } catch (Exception ignored) {}
+
+      DebugSession session = debugMgr.getSession(sessionId);
+      if (session == null) { ctx.status(404).json(Map.of("error", "Session not found")); return; }
+
+      try {
+        ctx.json(session.getVariables(frame));
+      } catch (Exception e) {
+        ctx.status(500).json(Map.of("error", e.getMessage()));
+      }
+    });
+
+    // Get session state
+    routes.get("/api/debug/state", ctx -> {
+      if (debugMgr == null) { ctx.status(503).json(Map.of("error", "Debug not available")); return; }
+
+      String sessionId = ctx.queryParam("sessionId");
+      DebugSession session = debugMgr.getSession(sessionId);
+      if (session == null) { ctx.status(404).json(Map.of("error", "Session not found")); return; }
+
+      ctx.json(session.stateMap());
+    });
+
+    // Stop / terminate session
+    routes.post("/api/debug/stop", ctx -> {
+      if (debugMgr == null) { ctx.status(503).json(Map.of("error", "Debug not available")); return; }
+
+      String sessionId = ctx.bodyAsClass(Map.class).getOrDefault("sessionId", "").toString();
+      debugMgr.stopSession(sessionId);
+      ctx.json(Map.of("ok", true));
+    });
   }
 
   static String detectLanguage(String path) {

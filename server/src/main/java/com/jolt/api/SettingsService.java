@@ -109,6 +109,13 @@ public class SettingsService {
     defaults.put("git.diff.maxLines", 1000);      // cap diff rendering at N lines per file
     defaults.put("git.diff.defaultView", "unified"); // "unified" | "split" | "raw"
 
+    // Debug settings
+    defaults.put("debug.java.basePort", 5005);     // base JDWP port (auto-increments per session)
+    defaults.put("debug.gdb.path", "gdb");         // path to GDB binary
+    defaults.put("debug.gdb.mode", "launch");      // "launch" (Jolt spawns exe) | "attach" (client provides PID)
+    defaults.put("debug.jdb.path", "jdb");         // path to JDB binary
+    defaults.put("debug.defaultStepMode", "over"); // "over" | "into" | "out"
+
     return defaults;
   }
 
@@ -118,7 +125,9 @@ public class SettingsService {
            "wordWrap", "showLineNumbers", "minimapEnabled",
            "gitAutoRefresh",
            "search.fuzzy.maxEdits", "search.suggest.limit",
-           "git.diff.maxLines", "git.diff.defaultView" -> true;
+           "git.diff.maxLines", "git.diff.defaultView",
+           "debug.java.basePort", "debug.gdb.path", "debug.gdb.mode",
+           "debug.jdb.path", "debug.defaultStepMode" -> true;
       default -> false;
     };
   }

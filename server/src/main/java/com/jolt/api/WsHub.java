@@ -211,6 +211,20 @@ public class WsHub {
     broadcast(msg);
   }
 
+  /** Broadcast a debug event to all connected clients. */
+  public void broadcastDebugEvent(com.jolt.debug.DebugEvent event) {
+    ObjectNode node = MAPPER.createObjectNode();
+    node.put("type", "debug_event");
+    node.put("sessionId", event.sessionId());
+    node.put("event", event.type());
+    if (event.filePath() != null) node.put("filePath", event.filePath());
+    if (event.line() > 0) node.put("line", event.line());
+    if (event.threadName() != null) node.put("threadName", event.threadName());
+    if (!event.payload().isEmpty()) node.set("payload", MAPPER.valueToTree(event.payload()));
+
+    broadcast(node.toString());
+  }
+
   /** Current number of connected WebSocket clients. */
   public int connectionCount() { return connectionCount.get(); }
 

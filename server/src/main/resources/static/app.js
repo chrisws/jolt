@@ -13,6 +13,16 @@ import { initNavHistory } from './modules/nav-history.js';
 import { initDivider } from './modules/divider.js';
 import { initContextMenu } from './modules/context-menu.js';
 
+// Apply theme from settings
+(async () => {
+  try {
+    const res = await fetch('/api/settings');
+    const settings = await res.json();
+    const theme = settings.theme || 'dark';
+    document.documentElement.dataset.theme = theme;
+  } catch { /* default to dark */ }
+})();
+
 // Startup: wire up all subsystems
 initSearch();
 initSettings();
@@ -33,3 +43,13 @@ window._openQuickOpen = openQuickOpen;
 
 // Copy Link button
 document.getElementById('copy-link-btn').addEventListener('click', copyShareableLink);
+
+// Theme toggle
+const themeBtn = document.getElementById('theme-toggle');
+themeBtn.addEventListener('click', async () => {
+  const current = document.documentElement.dataset.theme || 'dark';
+  const next = current === 'dark' ? 'light' : 'dark';
+  document.documentElement.dataset.theme = next;
+  themeBtn.textContent = next === 'dark' ? '\u263D' : '\u2600';
+  try { await fetch('/api/settings', { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({theme: next}) }); } catch {}
+});
