@@ -762,8 +762,9 @@ String branch = ctx.body();
 
     // --- Git Working Tree Status (dirty files) ---
     routes.get("/api/git/status", ctx -> {
-      Set<String> dirty = gitSvc.workingTreeStatus();
-      ctx.json(dirty);
+      boolean includeUntracked = "true".equals(ctx.queryParam("untracked"));
+      List<Map<String, String>> status = gitSvc.workingTreeStatus(includeUntracked);
+      ctx.json(status);
     });
 
     // --- Git Working Tree Diff (single file) ---
@@ -772,6 +773,14 @@ String branch = ctx.body();
       if (path == null || path.isBlank()) { ctx.status(400).result("Missing 'path' parameter"); return; }
       String diff = gitSvc.workingTreeDiff(path);
       ctx.contentType("text/plain").result(diff);
+    });
+
+    // --- Git Stage File (add to index) ---
+    routes.post("/api/git/add", ctx -> {
+      String path = ctx.queryParam("path");
+      if (path == null || path.isBlank()) { ctx.status(400).result("Missing 'path' parameter"); return; }
+      boolean ok = gitSvc.stageFile(path);
+      ctx.status(ok ? 200 : 500).json(Map.of("ok", ok));
     });
 
     // --- Git Commits Paginated (Stage 3b) ---

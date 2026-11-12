@@ -195,26 +195,60 @@ const $gitChanges = document.getElementById('git-changes-list');
 
 async function loadGitChanges() {
   if (!$gitChanges) return;
+
+  // Ensure toggle exists
+  let $toggle = document.getElementById('git-untracked-toggle');
+  if (!$toggle) {
+    $toggle = document.createElement('label');
+    $toggle.id = 'git-untracked-toggle';
+    $toggle.className = 'gc-toggle';
+    $toggle.innerHTML = '<input type="checkbox" id="git-untracked-cb"> Show untracked';
+    $gitChanges.parentElement.insertBefore($toggle, $gitChanges);
+    document.getElementById('git-untracked-cb').addEventListener('change', loadGitChanges);
+  }
+
+  const showUntracked = document.getElementById('git-untracked-cb').checked;
+
   try {
-    const res = await fetch('/api/git/status');
+    const qs = showUntracked ? '?untracked=true' : '';
+    const res = await fetch('/api/git/status' + qs);
     if (!res.ok) return;
-    const dirtyPaths = await res.json();
+    const entries = await res.json();
 
     $gitChanges.innerHTML = '';
 
-    if (!dirtyPaths || dirtyPaths.length === 0) {
+    if (!entries || entries.length === 0) {
       $gitChanges.innerHTML = '<div class="empty-hint">No changes</div>';
       return;
     }
 
-    for (const p of dirtyPaths) {
+    for (const entry of entries) {
+      const p = entry.path;
+      const type = entry.type;
       const el = document.createElement('div');
-      el.className = 'git-change-item';
+      el.className = 'git-change-item' + (type === 'untracked' ? ' gc-untracked' : '');
       const name = p.split('/').pop();
-      el.innerHTML = '<span class="gc-dot"></span><span class="gc-name">' + esc(name) + '</span>';
+
+      let html = '<span class="gc-dot gc-dot-' + type + '"></span><span class="gc-name">' + esc(name) + '</span>';
+      if (type === 'untracked') {
+        html += '<button class="gc-add-btn" title="Stage file">+</button>';
+      }
+      el.innerHTML = html;
       el.title = p;
 
-      el.addEventListener('click', () => showDirtyDiff(p));
+      el.addEventListener('click', (ev) => {
+        if (ev.target.classList.contains('gc-add-btn')) return;
+        showDirtyDiff(p);
+      });
+
+      if (type === 'untracked') {
+        el.querySelector('.gc-add-btn').addEventListener('click', async (ev) => {
+          ev.stopPropagation();
+          const r = await fetch('/api/git/add?path=' + encodeURIComponent(p), { method: 'POST' });
+          if (r.ok) loadGitChanges();
+        });
+      }
+
       $gitChanges.appendChild(el);
     }
   } catch (_) { /* not a git repo */ }

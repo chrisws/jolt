@@ -1200,6 +1200,8 @@ kbd {
   width: 16px;
   height: 16px;
   font-size: 9px;
+  line-height: 1;
+  margin-right: 2px;
   cursor: pointer;
   transition: transform 0.15s ease;
   flex-shrink: 0;
@@ -1312,7 +1314,6 @@ body.resizing { cursor: col-resize; user-select: none; }
 
 .md-rendered hr { border: none; border-top: 2px solid var(--border, #30363d); margin: 1.5em 0; }
 
-[KV-INFO] KV Cache:
 /* ── Collapsible Sidebar Sections ─────────────────── */
 
 .sidebar .section-label,
@@ -1347,7 +1348,6 @@ body.resizing { cursor: col-resize; user-select: none; }
 
 .tree-header .tree-controls { margin-left: auto; }
 
-[KV-INFO] KV Cache
 /* ── Sidebar Git Commits ──────────────────────────── */
 
 .gc-commits-label { font-size: 11px; color: var(--fg-dim, #6c7086); padding: 8px 12px 4px; text-transform: uppercase; letter-spacing: 0.5px; }
@@ -1364,11 +1364,35 @@ body.resizing { cursor: col-resize; user-select: none; }
 .git-change-item { display: flex; align-items: center; gap: 6px; padding: 4px 12px; cursor: pointer; font-size: 12px; border-radius: 4px; margin: 1px 4px; }
 .git-change-item:hover { background: rgba(88, 166, 255, 0.08); }
 .gc-dot { width: 7px; height: 7px; border-radius: 50%; background: #f0883e; flex-shrink: 0; }
+.gc-dot-untracked { background: #3fb950; }
+.gc-dot-deleted { background: #f85149; }
 .gc-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-.empty-hint { padding: 8px 12px; font-size: 11px; color: var(--fg-dim, #6c7086); font-style: italic; }
+.gc-add-btn {
+  margin-left: auto;
+  background: none;
+  border: 1px solid var(--border, #30363d);
+  border-radius: 3px;
+  color: var(--fg-dim, #6c7086);
+  font-size: 12px;
+  line-height: 1;
+  padding: 2px 5px;
+  cursor: pointer;
+}
+.gc-add-btn:hover { background: rgba(63, 185, 80, 0.15); color: #3fb950; border-color: #3fb950; }
 
-[KV-INFO] KV Cache
+.gc-toggle {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 12px;
+  font-size: 11px;
+  color: var(--fg-dim, #6c7086);
+  cursor: pointer;
+}
+.gc-toggle input { accent-color: #3fb950; }
+
+.empty-hint { padding: 8px 12px; font-size: 11px; color: var(--fg-dim, #6c7086); font-style: italic; }
 
 /* ── Light theme override ──────────────────── */
 [data-theme="light"] {
@@ -1387,7 +1411,6 @@ body.resizing { cursor: col-resize; user-select: none; }
   --scrollbar-h: #a0a0a0;
 }
 
-[KV-INFO] KV Cache: 81.86798%
 .theme-toggle {
   background: none;
   border: none;
@@ -1398,5 +1421,3 @@ body.resizing { cursor: col-resize; user-select: none; }
   border-radius: var(--radius);
 }
 .theme-toggle:hover { color: var(--text); background: var(--surface-2); }
-
-[KV-INFO] KV Cache: 86.1

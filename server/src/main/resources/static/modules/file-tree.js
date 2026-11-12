@@ -121,11 +121,13 @@ async function markDirtyFiles() {
   try {
     const res = await fetch('/api/git/status');
     if (!res.ok) return;
-    const dirtyPaths = await res.json(); // array of file paths
+    const entries = await res.json(); // array of {path, type} objects
+
+    const dirtySet = new Set(entries.map(e => e.path));
 
     $fileTree.querySelectorAll('.tree-item[data-path]').forEach(el => {
       const path = el.dataset.path;
-      if (dirtyPaths.includes(path)) {
+      if (dirtySet.has(path)) {
         el.classList.add('dirty');
         const label = el.querySelector('.tree-label');
         if (label && !label.querySelector('.dirty-dot')) {

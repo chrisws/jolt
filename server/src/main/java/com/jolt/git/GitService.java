@@ -742,40 +742,155 @@ public class GitService {
     return sb.toString();
   }
 
-  /** Returns paths of files with uncommitted changes (modified, added, deleted, untracked). */
-  public Set<String> workingTreeStatus() {
-    Set<String> dirty = new LinkedHashSet<>();
+  /** Returns structured status: list of {path, type} where type is modified|deleted|untracked. */
+  public List<Map<String, String>> workingTreeStatus(boolean includeUntracked) {
+    List<Map<String, String>> result = new ArrayList<>();
     try (Git git = Git.open(homeDir.toFile())) {
       Status status = git.status().call();
-      dirty.addAll(status.getUncommittedChanges());
-      dirty.addAll(status.getUntracked());
+
+      for (String path : status.getUncommittedChanges()) {
+        Map<String, String> entry = new LinkedHashMap<>();
+        entry.put("path", path);
+        boolean deleted = !homeDir.resolve(path).toFile().exists();
+        entry.put("type", deleted ? "deleted" : "modified");
+        result.add(entry);
+      }
+
+      if (includeUntracked) {
+        for (String path : status.getUntracked()) {
+          Map<String, String> entry = new LinkedHashMap<>();
+          entry.put("path", path);
+          entry.put("type", "untracked");
+          result.add(entry);
+        }
+      }
     } catch (Exception e) {
       log.warn("Git status failed: {}", e.getMessage());
     }
-    return dirty;
+    return result;
+  }
+
+  /** Stage a file (add to index). Works for both new and modified files. */
+  public boolean stageFile(String path) {
+    try (Git git = Git.open(homeDir.toFile())) {
+      git.add().addFilepattern(path).call();
+      return true;
+    } catch (Exception e) {
+      log.error("Failed to stage file {}: {}", path, e.getMessage());
+      return false;
+    }
   }
 
   /** Unified diff between HEAD and the working tree for a specific file. */
   public String workingTreeDiff(String path) {
     try (Git git = Git.open(homeDir.toFile())) {
-      List<DiffEntry> diffs = git.diff().call();
+      Status status = git.status().call();
 
-      ByteArrayOutputStream baos = new ByteArrayOutputStream();
-      DiffFormatter formatter = new DiffFormatter(baos);
+      String oldContent = null;
+      String newContent = null;
 
-      for (DiffEntry de : diffs) {
-        if (de.getNewPath().equals(path) || de.getOldPath().equals(path)) {
-          formatter.format(List.of(de));
-          break;
+      if (status.getUntracked().contains(path)) {
+        newContent = readFileSafe(path);
+      } else if (status.getUncommittedChanges().contains(path)) {
+        boolean deleted = !homeDir.resolve(path).toFile().exists();
+        oldContent = readHeadContent(git, path);
+        if (!deleted) {
+          newContent = readFileSafe(path);
         }
+      } else {
+        return "";
       }
 
-      return baos.toString();
+      return buildUnifiedDiff(path, oldContent, newContent);
 
     } catch (Exception e) {
       log.error("Working tree diff failed for {}: {}", path, e.getMessage());
       return "";
     }
+  }
+
+  private String readFileSafe(String path) {
+    try {
+      return java.nio.file.Files.readString(homeDir.resolve(path));
+    } catch (Exception e) {
+      log.warn("Cannot read file {}: {}", path, e.getMessage());
+      return "";
+    }
+  }
+
+  private String readHeadContent(Git git, String path) {
+    try {
+      var repo = git.getRepository();
+      var id = repo.resolve("HEAD:" + path);
+      if (id == null) return "";
+      var is = repo.open(id).openStream();
+      return new String(is.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+    } catch (Exception e) {
+      log.debug("No HEAD content for {}: {}", path, e.getMessage());
+      return "";
+    }
+  }
+
+  private String buildUnifiedDiff(String path, String oldContent, String newContent) {
+    StringBuilder sb = new StringBuilder();
+    sb.append("--- a/").append(path).append("\n");
+    sb.append("+++ b/").append(path).append("\n");
+
+    List<String> oldLines = oldContent != null ? List.of(oldContent.split("\n", -1)) : List.of();
+    List<String> newLines = newContent != null ? List.of(newContent.split("\n", -1)) : List.of();
+
+    // Find common prefix
+    int prefix = 0;
+    while (prefix < oldLines.size() && prefix < newLines.size()
+        && oldLines.get(prefix).equals(newLines.get(prefix))) {
+      prefix++;
+    }
+
+    // Find common suffix
+    int suffixOld = oldLines.size();
+    int suffixNew = newLines.size();
+    while (suffixOld > prefix && suffixNew > prefix
+        && oldLines.get(suffixOld - 1).equals(newLines.get(suffixNew - 1))) {
+      suffixOld--;
+      suffixNew--;
+    }
+
+    int oldStart = prefix;
+    int oldEnd = suffixOld;
+    int newStart = prefix;
+    int newEnd = suffixNew;
+
+    // Hunk header
+    int oldCount = oldEnd - oldStart;
+    int newCount = newEnd - newStart;
+    int oldLineNo = oldStart + 1;
+    int newLineNo = newStart + 1;
+    sb.append("@@ -").append(oldLineNo).append(",").append(oldCount)
+      .append(" +").append(newLineNo).append(",").append(newCount).append(" @@\n");
+
+    // Context before (up to 3 lines)
+    int ctxStart = Math.max(0, oldStart - 3);
+    for (int i = ctxStart; i < oldStart; i++) {
+      sb.append(" ").append(oldLines.get(i)).append("\n");
+    }
+
+    // Deletions
+    for (int i = oldStart; i < oldEnd; i++) {
+      sb.append("-").append(oldLines.get(i)).append("\n");
+    }
+
+    // Additions
+    for (int i = newStart; i < newEnd; i++) {
+      sb.append("+").append(newLines.get(i)).append("\n");
+    }
+
+    // Context after (up to 3 lines)
+    int ctxEnd = Math.min(oldLines.size(), oldEnd + 3);
+    for (int i = oldEnd; i < ctxEnd; i++) {
+      sb.append(" ").append(oldLines.get(i)).append("\n");
+    }
+
+    return sb.toString();
   }
 
 }
