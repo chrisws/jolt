@@ -2,6 +2,8 @@
 
 Living reference doc — update as items are addressed throughout development.
 
+> **Access model:** Jolt is designed for **local network access only** (developer workstation or small team LAN). No authentication, no TLS, no multi-tenant isolation. The server binds to a configurable host (default `localhost`); exposing it to untrusted networks is out of scope.
+
 ---
 
 ## UI Review Checklist
@@ -69,7 +71,7 @@ Living reference doc — update as items are addressed throughout development.
 - [ ] File content load: show a spinner or skeleton in the code viewer while fetching
 - [ ] Search results: show "Searching…" indicator before results appear
 - [ ] Git commits: show loading state in sidebar section
-- [ ] Settings save: brief "Saving…" → "Saved ✓" feedback (partially done)
+- [~] Settings save: brief "Saving…" → "Saved ✓" feedback (partially done)
 - [ ] Index rebuild (semantic model load): progress indicator with percentage
 
 ### 8. URL / State Sync
@@ -306,6 +308,117 @@ Living reference doc — update as items are addressed throughout development.
 - [ ] Max file tree depth: 20 (prevent pathological nesting)
 - [ ] Connection / thread pool limits documented and enforced
 - [ ] Graceful shutdown: finish in-flight requests, close Lucene index, flush file watcher
+
+---
+
+### B11. WebSocket Protocol
+
+*Current implementation: `WsHub.java` — single endpoint at `/ws`, JSON text frames.*
+
+- [ ] Define a formal message schema (JSON Schema or OpenAPI) for all WS message types
+- [ ] Document all server→client message types: `file_changed`, `search_results`, `debug_event`, (future: `index_progress`, `git_status`)
+- [ ] Document all client→server message types: `search` (current); future: `subscribe`, `unsubscribe`, `ping`
+- [ ] Add server-side heartbeat: send `{"type":"ping"}` every 30 s; drop connections that miss 2 consecutive pings
+- [ ] Client reconnection strategy: exponential backoff (1 s → 2 s → 4 s → … max 30 s), resume subscriptions on reconnect
+- [ ] On server restart: clients detect close, reconnect, re-subscribe; no state loss on server side (stateless hub)
+- [ ] Rate-limit client→server messages (e.g. max 20 msg/s per connection) to prevent flooding
+- [ ] Validate incoming JSON shape before processing; reject malformed frames with a structured error message
+- [ ] Log connection/disconnection events with client IP for debugging (already done via `log.info`)
+- [ ] Consider per-client topic subscriptions (e.g. only receive `file_changed` for watched paths) to reduce bandwidth on large repos
+
+### B12. Data Persistence
+
+*Current implementation: JSON files under `.jolt/` directory — no database.*
+
+| Data          | File                  | Format                          | Cap         |
+|---------------|-----------------------|---------------------------------|-------------|
+| Settings      | `.jolt/settings.json` | Flat key-value JSON             | —           |
+| Bookmarks     | `.jolt/prefs.json`    | Array of `{path,line,label,createdAt}` | —       |
+| Recent files  | `.jolt/prefs.json`    | Array of `{path,openedAt}`      | 20 entries  |
+| Search history| `.jolt/prefs.json`    | Array of `{query,searchedAt}`   | 50 entries  |
+
+- [ ] Document the `.jolt/` directory contract: what creates it, what owns it, safe to delete (regenerates on next start)
+- [ ] Add file locking or atomic-write (write-to-temp + rename) for `prefs.json` to prevent corruption on concurrent access
+- [ ] Version the settings schema (`"version": 1`) to support future migration of key names/structures
+- [ ] Consider splitting `prefs.json` into separate files (`bookmarks.json`, `recent.json`, `history.json`) if it grows
+- [ ] Define behaviour when `.jolt/` is on a read-only filesystem (log error, run in degraded mode)
+- [ ] No PII in persisted data: verify file paths don't leak user home directory in shared environments
+
+### B13. Testing Strategy
+
+*Current setup: JUnit 5 (Jupiter) for Java, Node.js built-in test runner (`node --test`) for JS utilities. No E2E testing.*
+
+- [ ] Maintain ≥80% line coverage on `api/`, `index/`, `nav/`, `git/` packages (enforce via JaCoCo in CI)
+- [ ] Every new public method gets at least one happy-path + one error-path test
+- [ ] Integration tests: spin up Javalin on a random port, hit endpoints with `HttpClient` (no external services)
+- [ ] JS tests: cover pure utility functions (diff, URL parsing, keybinding resolution); no DOM testing
+- [ ] Test data: use `@TempDir` for file-based tests; never write to real `.jolt/` or repo directories
+- [ ] Git service tests: create throwaway repos via JGit in temp dirs (already the pattern)
+- [ ] Lucene index tests: build small in-memory indexes; test search/reindex/lifecycle
+- [ ] WebSocket tests: use Javalin's test harness or a raw `WebSocketClient` against a test server instance
+- [ ] Run all tests on every commit (Maven `test` phase + `node --test` for JS)
+- [ ] No E2E / browser automation (Playwright, Cypress) — out of scope by design
+
+### B14. Deployment & Operations *(future review)*
+
+> Not yet defined. Revisit when packaging/distribution strategy is decided.
+
+- [ ] Define packaging: fat JAR (current `maven-shade-plugin`) vs. native image (GraalVM) vs. container image
+- [ ] CI/CD pipeline: build → test → package → (optional) publish to internal artifact repo
+- [ ] Configuration: CLI args (current) vs. env vars vs. config file — document precedence
+- [ ] Log rotation strategy for long-running server instances
+- [ ] Graceful upgrade path: what happens to `.jolt/` data and Lucene index across version upgrades
+- [ ] Health monitoring: expose `/api/health` (see B7); alert if index stale >24 h
+
+### B15. Internationalisation *(future review)*
+
+> Not planned for initial release. Revisit if non-English locale support is requested.
+
+- [ ] Externalise all user-facing strings to resource bundles (`messages.properties`)
+- [ ] Date/number formatting via `java.time` + `Locale`
+- [ ] RTL layout support in CSS (if needed)
+- [ ] Font fallback stack for CJK / Arabic scripts
+
+### B16. Accessibility Testing Methodology *(future review)*
+
+> ARIA attributes are specified in §1; testing approach to be defined when a11y work begins.
+
+- [ ] Target conformance level: WCAG 2.1 AA
+- [ ] Automated: run axe-core (via Puppeteer script or Lighthouse CI) on key pages in CI
+- [ ] Manual: quarterly screen-reader passes (NVDA + Firefox, VoiceOver + Safari)
+- [ ] Keyboard-only walkthrough: verify full task completion without mouse
+- [ ] Contrast: automated check via `palettee` or WebAIM contrast checker on all theme pairs
+
+### B17. Dependency & Vulnerability Management
+
+- [ ] Run `mvn dependency:analyze` on each PR to flag unused/undeclared deps
+- [ ] Enable OWASP Dependency-Check plugin (or Snyk) in CI; fail build on CRITICAL/HIGH CVEs
+- [ ] Pin all dependency versions in `pom.xml` (no `LATEST`/`RELEASE` ranges)
+- [ ] Review transitive dependencies quarterly; document why each non-direct dep is needed
+- [ ] Keep JDK, Javalin, Lucene, JGit on supported LTS lines; upgrade within 2 months of release
+- [ ] Frontend: no npm/bundler — inline JS + CDN-free hljs/marked; keep external scripts to zero
+
+### B18. Code Quality Gates
+
+- [ ] Enforce Checkstyle (or Palantir Java Format) on all Java sources via Maven plugin — fail build on violations
+- [ ] Max line length: 120 chars (already in AGENTS.md); enforce in CI
+- [ ] No `System.out.println` in production code — use SLF4J logger (enforce via ArchUnit test or Checkstyle)
+- [ ] No wildcard imports (`import com.jolt.*`) — enforce via Checkstyle
+- [ ] All public classes/methods require Javadoc (enforce via Checkstyle `JavadocMethod`)
+- [ ] JS: run `node --check` on all `.js` files in CI for syntax validation
+- [ ] PR checklist: tests pass, no new warnings, line length OK, no debug `log.debug` left at `log.info`
+
+### B19. Crash & Error Reporting
+
+*Current state: SLF4J logging to console/file; API returns `ctx.status(500).json(Map.of("error", msg))`.*
+
+- [ ] Unhandled exception handler in Javalin: catch-all `app.exception(Exception.class, …)` → log full stack trace at ERROR, return structured 500 JSON
+- [ ] Uniform error response format for all 4xx/5xx: `{"error":"…","code":"…","details":"…"}` (see B5)
+- [ ] Log file: write to `.jolt/logs/jolt.log` with daily rotation (Logback `RollingFileAppender`), max 10 files
+- [ ] On JVM crash (OOM, fatal): ensure Lucene index is closed via `Runtime.addShutdownHook`; log crash timestamp
+- [ ] UI: global `window.onerror` + `unhandledrejection` handler → show toast "Something went wrong — check server logs"
+- [ ] No stack traces in API responses to client (log server-side only); return user-friendly message
+- [ ] Add a `/api/debug/dump` endpoint (local-only) that returns current thread dump + heap summary for troubleshooting
 
 ---
 
