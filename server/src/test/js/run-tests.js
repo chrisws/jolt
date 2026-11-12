@@ -13,4 +13,4 @@ if (files.length === 0) {
   process.exit(0);
 }
 
-execSync(`node --test ${files.join(' ')}`, { stdio: 'inherit' });
+execSync(`node --test ${files.join(' ')}`, { stdio: ['ignore', 'pipe', 'inherit'] });
