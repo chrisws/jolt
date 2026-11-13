@@ -52,7 +52,10 @@ package com.jolt.parse;
    private CallGraph callGraph; // nullable — set via setCallGraph()
 
    /** Set the call graph to populate during parsing. */  
-   public void setCallGraph(CallGraph cg) { this.callGraph = cg; }  
+   public void setCallGraph(CallGraph cg) { this.callGraph = cg; }
+
+   /** Bundles per-file parse context to avoid passing 4 params through every extraction call. */  
+   private record ParseContext(String pkg, String source, String filePathStr, List<ClassSymbol> out) {}
 
    /** Parse a .java file and extract all top-level type symbols. */  
    public List<ClassSymbol> parse(Path filePath) {  
@@ -85,20 +88,21 @@ package com.jolt.parse;
     
     // Iterate top-level types using only confirmed-available node types
     List<?> topLevelTypes = cu.types();
+    var ctx = new ParseContext(pkg, source, filePath.toString(), results);
     for (int i = 0; i < topLevelTypes.size(); i++) {
       Object nodeObj = topLevelTypes.get(i);
       
       if (nodeObj instanceof TypeDeclaration td) {
         SymbolKind kind = detectTypeKind(td, source);  
         if (kind == SymbolKind.INTERFACE) {
-          extractInterface(td, pkg, source, filePath.toString(), results);
+          extractInterface(td, ctx);
         } else {
-          extractClass(td, pkg, source, filePath.toString(), results);
+          extractClass(td, ctx);
         }
       } else if (nodeObj instanceof EnumDeclaration ed) {
-        extractEnum(ed, pkg, source, filePath.toString(), results);
+        extractEnum(ed, ctx);
       } else if (nodeObj instanceof RecordDeclaration rd) {
-        extractRecord(rd, pkg, source, filePath.toString(), results);
+        extractRecord(rd, ctx);
       } else {
         log.debug("Unhandled top-level type: {}", nodeObj.getClass().getSimpleName());
       }  
@@ -117,25 +121,25 @@ package com.jolt.parse;
     return SymbolKind.CLASS;  
   }  
 
-  private void extractClass(TypeDeclaration td, String pkg, String source, String filePathStr, List<ClassSymbol> out) {  
+  private void extractClass(TypeDeclaration td, ParseContext ctx) {  
     doExtractType(td.getName().getIdentifier(), td.bodyDeclarations(), 
                   td.getSuperclassType() != null ? td.getSuperclassType().toString() : null,
-                  superInterfacesOf(td), SymbolKind.CLASS, pkg, source, filePathStr, out); 
+                  superInterfacesOf(td), SymbolKind.CLASS, ctx); 
   }  
 
-  private void extractEnum(EnumDeclaration ed, String pkg, String source, String filePathStr, List<ClassSymbol> out) {  
+  private void extractEnum(EnumDeclaration ed, ParseContext ctx) {  
     doExtractType(ed.getName().getIdentifier(), ed.bodyDeclarations(), 
-                  null, superInterfacesOf(ed), SymbolKind.ENUM, pkg, source, filePathStr, out);  
+                  null, superInterfacesOf(ed), SymbolKind.ENUM, ctx);  
   }  
 
-  private void extractRecord(RecordDeclaration rd, String pkg, String source, String filePathStr, List<ClassSymbol> out) {  
+  private void extractRecord(RecordDeclaration rd, ParseContext ctx) {  
     doExtractType(rd.getName().getIdentifier(), rd.bodyDeclarations(), 
-                  null, superInterfacesOf(rd), SymbolKind.RECORD, pkg, source, filePathStr, out);  
+                  null, superInterfacesOf(rd), SymbolKind.RECORD, ctx);  
   }  
 
-  private void extractInterface(TypeDeclaration td, String pkg, String source, String filePathStr, List<ClassSymbol> out) {  
+  private void extractInterface(TypeDeclaration td, ParseContext ctx) {  
     doExtractType(td.getName().getIdentifier(), td.bodyDeclarations(), 
-                  null, superInterfacesOf(td), SymbolKind.INTERFACE, pkg, source, filePathStr, out);  
+                  null, superInterfacesOf(td), SymbolKind.INTERFACE, ctx);  
   }  
 
   @SuppressWarnings("unchecked")
@@ -155,9 +159,9 @@ package com.jolt.parse;
 
   private void doExtractType(String name, List<?> bodyDecls, String superClassStr, 
                              List<String> interfaces, SymbolKind kind, 
-                             String pkg, String source, String filePathStr, List<ClassSymbol> out) {  
-    String fqn = ParseUtils.buildFqn(pkg, name);  
-    ClassSymbol cs = new ClassSymbol(fqn, name, kind, filePathStr);  
+                             ParseContext ctx) {  
+    String fqn = ParseUtils.buildFqn(ctx.pkg(), name);  
+    ClassSymbol cs = new ClassSymbol(fqn, name, kind, ctx.filePathStr());  
 
     int startOffset = -1;  
     int endOffset = -1;  
@@ -176,32 +180,32 @@ package com.jolt.parse;
 
       try {
         if (memberObj instanceof MethodDeclaration md) {  
-          handleMethod(md, fqn, cs, source);  
+          handleMethod(md, fqn, cs, ctx.source());  
         } else if (memberObj instanceof FieldDeclaration fd) {  
-          handleField(fd, cs, source);  
+          handleField(fd, cs, ctx.source());  
         } else if (memberObj instanceof TypeDeclaration nestedTd) { 
           // Detect interface vs class via source text  
-          SymbolKind nkind = detectTypeKind(nestedTd, source);  
+          SymbolKind nkind = detectTypeKind(nestedTd, ctx.source());  
           String nsuper = (nkind == SymbolKind.CLASS && nestedTd.getSuperclassType() != null) 
                           ? nestedTd.getSuperclassType().toString() : null;  
           doExtractType(nestedTd.getName().getIdentifier(), nestedTd.bodyDeclarations(),
                         nsuper, superInterfacesOf(nestedTd), nkind,
-                        pkgForNested(fqn), source, filePathStr, out); 
+                        new ParseContext(pkgForNested(fqn), ctx.source(), ctx.filePathStr(), ctx.out())); 
       } else if (memberObj instanceof EnumDeclaration ne) {  
         doExtractType(ne.getName().getIdentifier(), ne.bodyDeclarations(),
                       null, superInterfacesOf(ne), SymbolKind.ENUM,
-                      pkgForNested(fqn), source, filePathStr, out);
+                      new ParseContext(pkgForNested(fqn), ctx.source(), ctx.filePathStr(), ctx.out()));
       } else if (memberObj instanceof RecordDeclaration nr) {  
         doExtractType(nr.getName().getIdentifier(), nr.bodyDeclarations(),
                       null, superInterfacesOf(nr), SymbolKind.RECORD,
-                      pkgForNested(fqn), source, filePathStr, out);
+                      new ParseContext(pkgForNested(fqn), ctx.source(), ctx.filePathStr(), ctx.out()));
         }
       } catch (Exception e) {  
         log.debug("Error extracting member [{}]: {}", i, e.getMessage());  
       } 
     }  
 
-    out.add(cs); 
+    ctx.out().add(cs); 
   }  
 
   /** For nested types we use the outer FQN as pseudo-package so buildFqn produces Outer.Inner */  
@@ -343,4 +347,3 @@ package com.jolt.parse;
   }  
 
 }
-

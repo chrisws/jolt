@@ -510,6 +510,14 @@ public class ApiRoutes {
   // --- Git Read: Blame, Diff, Branches, Stats, Commits ---
 
   private void registerGitReadRoutes(Javalin app) {
+    registerBlameRoute(app);
+    registerGitDiffRoutes(app);
+    registerGitBranchRoutes(app);
+    registerGitStatusRoutes(app);
+    registerGitCommitRoutes(app);
+  }
+
+  private void registerBlameRoute(Javalin app) {
     var routes = app.unsafe.routes;
 
     routes.get("/api/blame", ctx -> {
@@ -535,6 +543,10 @@ public class ApiRoutes {
         ctx.status(500).json(Map.of("error", e.getMessage()));
       }
     });
+  }
+
+  private void registerGitDiffRoutes(Javalin app) {
+    var routes = app.unsafe.routes;
 
     routes.get("/api/git/diff", ctx -> {
       String from = ctx.queryParam("from"); // optional — if null, diff commit vs parent
@@ -557,6 +569,10 @@ public class ApiRoutes {
       String diffContent = gitSvc.fileDiff(from, to, path);
       ctx.json(Map.of("path", path, "diff", diffContent));
     });
+  }
+
+  private void registerGitBranchRoutes(Javalin app) {
+    var routes = app.unsafe.routes;
 
     routes.get("/api/git/branches", ctx -> {
       List<Map<String, Object>> branches = gitSvc.branches();
@@ -573,6 +589,10 @@ public class ApiRoutes {
         ctx.status(409).json(Map.of("error", e.getMessage()));
       }
     });
+  }
+
+  private void registerGitStatusRoutes(Javalin app) {
+    var routes = app.unsafe.routes;
 
     routes.get("/api/git/stats", ctx -> {
       Map<String, Object> stats = gitSvc.stats();
@@ -598,6 +618,10 @@ public class ApiRoutes {
       boolean ok = gitSvc.stageFile(path);
       ctx.status(ok ? 200 : 500).json(Map.of("ok", ok));
     });
+  }
+
+  private void registerGitCommitRoutes(Javalin app) {
+    var routes = app.unsafe.routes;
 
     routes.get("/api/git/commits", ctx -> {
       String branch = ctx.queryParam("branch");
@@ -933,6 +957,12 @@ public class ApiRoutes {
   // --- Debug ---
 
   private void registerDebugRoutes(Javalin app) {
+    registerDebugSessionRoutes(app);
+    registerDebugControlRoutes(app);
+    registerDebugInspectRoutes(app);
+  }
+
+  private void registerDebugSessionRoutes(Javalin app) {
     var routes = app.unsafe.routes;
 
     routes.post("/api/debug/start", ctx -> {
@@ -958,6 +988,10 @@ public class ApiRoutes {
         ctx.status(500).json(Map.of("error", e.getMessage()));
       }
     });
+  }
+
+  private void registerDebugControlRoutes(Javalin app) {
+    var routes = app.unsafe.routes;
 
     routes.post("/api/debug/breakpoint", ctx -> {
       if (debugMgr == null) { ctx.status(503).json(Map.of("error", "Debug not available")); return; }
@@ -1029,6 +1063,10 @@ public class ApiRoutes {
         ctx.status(500).json(Map.of("error", e.getMessage()));
       }
     });
+  }
+
+  private void registerDebugInspectRoutes(Javalin app) {
+    var routes = app.unsafe.routes;
 
     routes.get("/api/debug/variables", ctx -> {
       if (debugMgr == null) { ctx.status(503).json(Map.of("error", "Debug not available")); return; }
