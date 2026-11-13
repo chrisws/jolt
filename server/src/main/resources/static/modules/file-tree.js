@@ -59,6 +59,7 @@ async function loadDir(dirPath, target, depth) {
             loaded = true;
             el.dataset.loaded = 'true';
             await loadDir(e.path, childContainer, depth + 1);
+            markDirtyFiles();
           }
 
           childContainer.style.display = isExpanded ? 'none' : 'block';
@@ -164,7 +165,11 @@ async function markDirtyFiles() {
         if (label && !label.querySelector('.dirty-dot')) {
           const dot = document.createElement('span');
           dot.className = 'dirty-dot';
-          dot.title = 'Uncommitted changes';
+          dot.title = 'View diff';
+          dot.addEventListener('click', (ev) => {
+            ev.stopPropagation();
+            location.hash = '/git/diff/' + encodeURIComponent(path);
+          });
           label.appendChild(dot);
         }
       }

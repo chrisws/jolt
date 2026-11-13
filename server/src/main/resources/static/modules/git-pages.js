@@ -491,6 +491,9 @@ export async function renderGitChanges() {
         html += '</div>';
       }
 
+      // Diff display area
+      html += '<div id="wt-diff-area" class="wt-diff-area"></div>';
+
       // Stage All button
       html += '<div class="wt-actions"><button id="btn-stage-all" class="btn-small">Stage All</button></div>';
     }
@@ -529,6 +532,23 @@ export async function renderGitChanges() {
     $viewer.innerHTML = html;
 
     // ── Event Listeners ──
+
+    // Click row → show dirty diff
+    document.querySelectorAll('.wt-file-row').forEach(row => {
+      row.addEventListener('click', (e) => {
+        if (e.target.closest('.wt-stage-btn') || e.target.closest('.wt-open-btn')) return;
+        showDirtyDiff(row.dataset.path);
+      });
+    });
+
+    // Open in Tab
+    document.querySelectorAll('.wt-open-btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const { openTab } = await import('./tabs.js');
+        openTab(btn.dataset.path);
+        location.hash = ''; // leave git view → show tabs/sidebar
+      });
+    });
 
     // Stage / Unstage per file
     document.querySelectorAll('.wt-stage-btn').forEach(btn => {
@@ -665,11 +685,103 @@ function wtFileRow(path, type) {
   const icon = type === 'modified' ? '~' : type === 'deleted' ? '−' : '+';
   const cls = type === 'modified' ? 'wt-mod' : type === 'deleted' ? 'wt-del' : 'wt-new';
 
-  let html = '<div class="wt-file-row">';
+  let html = '<div class="wt-file-row" data-path="' + esc(path) + '">';
   html += '<span class="wt-icon ' + cls + '">' + icon + '</span>';
   html += '<span class="wt-path">' + esc(path) + '</span>';
+  if (type !== 'deleted') {
+    html += '<button class="btn-small wt-open-btn" data-path="' + esc(path) + '">Open</button>';
+  }
   html += '<button class="btn-small wt-stage-btn" data-path="' + esc(path) + '" data-staged="false">Stage</button>';
   html += '</div>';
 
   return html;
+}
+
+async function showDirtyDiff(path) {
+  const area = document.getElementById('wt-diff-area');
+  if (!area) return;
+  area.innerHTML = '<div class="loading">Loading diff…</div>';
+  try {
+    const res = await authFetch('/api/git/dirty-diff?path=' + encodeURIComponent(path));
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const text = await res.text();
+    if (!text.trim()) { area.innerHTML = '<div class="empty-state"><span>No changes</span></div>'; return; }
+    const lines = text.split('\n');
+    let html = '<div class="diff-file-header">' + esc(path) + '</div><div class="diff-body">';
+    for (const line of lines) {
+      let cls = 'diff-ctx'; let prefix = ' ';
+      if (line.startsWith('+')) { cls = 'diff-add'; prefix = '+'; }
+      else if (line.startsWith('-')) { cls = 'diff-del'; prefix = '-'; }
+      else if (line.startsWith('@@')) { cls = 'diff-hunk'; prefix = '@@'; }
+      else if (line.startsWith('---') || line.startsWith('+++')) { cls = 'diff-meta'; prefix = line[0]; }
+      const content = line.length > 1 ? line.substring(1) : '';
+      html += '<div class="diff-line ' + cls + '"><span class="diff-prefix">' + esc(prefix) + '</span><span class="diff-text">' + esc(content) + '</span></div>';
+    }
+    html += '</div>';
+    area.innerHTML = html;
+  } catch (err) {
+    area.innerHTML = '<div class="empty-state"><span>Failed: ' + esc(err.message) + '</span></div>';
+  }
+}
+
+export async function renderDirtyDiff(path) {
+  const $viewer = document.getElementById('code-viewer');
+
+  let html = '<div class="git-page">';
+  html += '<div class="git-header"><h1>Working Tree Diff</h1><a href="#/git/changes" class="git-nav-link">&larr; Changes</a></div>';
+  html += '<div class="commit-detail-header">';
+  html += '<div class="cd-row"><strong>' + esc(path) + '</strong></div>';
+  html += '</div>';
+
+  html += '<div class="diff-view-toggle">';
+  html += '<button data-view="unified" class="view-btn active">Unified</button>';
+  html += '<button data-view="split" class="view-btn">Side-by-side</button>';
+  html += '<button data-view="inline" class="view-btn">Inline</button>';
+  html += '<button data-view="raw" class="view-btn">Raw</button>';
+  html += '</div>';
+
+  html += '<div class="diff-content" id="diff-content"><div class="loading">Loading diff…</div></div>';
+  html += '</div>';
+  $viewer.innerHTML = html;
+
+  // View toggle handlers
+  document.querySelectorAll('.view-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.view-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      loadDirtyDiffContent(path, btn.dataset.view);
+    });
+  });
+
+  // Initial load
+  loadDirtyDiffContent(path, 'unified');
+}
+
+async function loadDirtyDiffContent(path, view) {
+  const diffArea = document.getElementById('diff-content');
+  if (!diffArea) return;
+  diffArea.innerHTML = '<div class="loading">Loading diff…</div>';
+
+  try {
+    if (view === 'raw') {
+      const res = await authFetch('/api/file/content?path=' + encodeURIComponent(path));
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const text = await res.text();
+      renderRawView(diffArea, path, text);
+      return;
+    }
+
+    const res = await authFetch('/api/git/dirty-diff?path=' + encodeURIComponent(path));
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const text = await res.text();
+
+    if (!text.trim()) { diffArea.innerHTML = '<div class="empty-state"><span>No changes</span></div>'; return; }
+
+    const diffLines = text.split('\n');
+    if (view === 'split') { renderSplitDiff(diffArea, path, diffLines); }
+    else if (view === 'inline') { renderInlineDiff(diffArea, path, diffLines); }
+    else { renderUnifiedDiff(diffArea, path, diffLines, 500); }
+  } catch (err) {
+    diffArea.innerHTML = '<div class="empty-state"><span>Failed: ' + esc(err.message) + '</span></div>';
+  }
 }
