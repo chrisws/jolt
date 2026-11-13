@@ -53,20 +53,24 @@ public class GitService {
     this.homeDir = homeDir.toAbsolutePath().normalize();
   }
 
+  /** Walk all commits from a given ref (newest first). */
+  private List<RevCommit> walkAllCommits(Repository repo, String refName) throws Exception {
+    List<RevCommit> commits = new ArrayList<>();
+    try (RevWalk revWalk = new RevWalk(repo)) {
+      revWalk.setRevFilter(RevFilter.ALL);
+      RevCommit head = revWalk.parseCommit(repo.resolve(refName));
+      revWalk.markStart(head);
+      for (RevCommit c : revWalk) { commits.add(c); }
+    }
+    return commits;
+  }
+
   /** Get commit log, optionally filtered by author name or message prefix. */
   public List<Map<String, Object>> log(int count, String authorFilter, String messagePrefix) {
     try (Git git = Git.open(homeDir.toFile())) {
       Repository repo = git.getRepository();
 
-      List<RevCommit> allCommits = new ArrayList<>();
-      try (RevWalk revWalk = new RevWalk(repo)) {
-        revWalk.setRevFilter(RevFilter.ALL);
-        RevCommit head = revWalk.parseCommit(repo.resolve("HEAD"));
-        revWalk.markStart(head);
-        for (RevCommit c : revWalk) {
-          allCommits.add(c);
-        }
-      }
+      List<RevCommit> allCommits = walkAllCommits(repo, "HEAD");
 
       // Apply filters manually (JGit LogCommand lacks regex author / message prefix)
       List<RevCommit> filtered = allCommits.stream()
@@ -281,13 +285,7 @@ public class GitService {
     try (Git git = Git.open(homeDir.toFile())) {
       Repository repo = git.getRepository();
 
-      List<RevCommit> allCommits = new ArrayList<>();
-      try (RevWalk revWalk = new RevWalk(repo)) {
-        revWalk.setRevFilter(RevFilter.ALL);
-        RevCommit head = revWalk.parseCommit(repo.resolve("HEAD"));
-        revWalk.markStart(head);
-        for (RevCommit c : revWalk) { allCommits.add(c); }
-      }
+      List<RevCommit> allCommits = walkAllCommits(repo, "HEAD");
 
       if (allCommits.isEmpty()) { return Map.of("totalCommits", 0, "contributors", List.of()); }
 
@@ -337,34 +335,7 @@ public class GitService {
         dayCounts.merge(dayKey, 1, Integer::sum);
       }
 
-      int longestStreak = 0, currentStreak = 0;
-      String busiestDay = ""; int busiestCount = 0;
-      java.time.LocalDate today = java.time.LocalDate.now();
-
-      // Compute longest streak by sorting dates
-      List<java.time.LocalDate> sortedDays = dayCounts.keySet().stream()
-          .map(java.time.LocalDate::parse).sorted().toList();
-
-      int streak = 0;
-      for (int i = 0; i < sortedDays.size(); i++) {
-        if (i > 0 && sortedDays.get(i).minusDays(1).equals(sortedDays.get(i - 1))) { streak++; }
-        else { streak = 1; }
-        if (streak > longestStreak) longestStreak = streak;
-      }
-
-      // Current streak: count back from today
-      java.time.LocalDate d = today;
-      while (dayCounts.containsKey(d.toString())) { currentStreak++; d = d.minusDays(1); }
-
-      // Busiest day
-      for (var entry : dayCounts.entrySet()) {
-        if (entry.getValue() > busiestCount) { busiestCount = entry.getValue(); busiestDay = entry.getKey(); }
-      }
-
-      result.put("longestStreak", longestStreak);
-      result.put("currentStreak", currentStreak);
-      result.put("busiestDay", busiestDay);
-      result.put("busiestDayCount", busiestCount);
+      result.putAll(computeStreakStats(dayCounts));
 
       return result;
 
@@ -379,16 +350,9 @@ public class GitService {
     try (Git git = Git.open(homeDir.toFile())) {
       Repository repo = git.getRepository();
 
-      List<RevCommit> allCommits = new ArrayList<>();
-
       // If a specific branch is requested, walk from that ref; otherwise HEAD
       String refName = (branch != null && !branch.isBlank()) ? branch : "HEAD";
-      try (RevWalk revWalk = new RevWalk(repo)) {
-        revWalk.setRevFilter(RevFilter.ALL);
-        RevCommit head = revWalk.parseCommit(repo.resolve(refName));
-        revWalk.markStart(head);
-        for (RevCommit c : revWalk) { allCommits.add(c); }
-      }
+      List<RevCommit> allCommits = walkAllCommits(repo, refName);
 
       // Apply filters (final for lambda capture)
       final java.time.Instant fromInstant = parseInstantSafe(from);
@@ -462,13 +426,7 @@ public class GitService {
     try (Git git = Git.open(homeDir.toFile())) {
       Repository repo = git.getRepository();
 
-      List<RevCommit> allCommits = new ArrayList<>();
-      try (RevWalk revWalk = new RevWalk(repo)) {
-        revWalk.setRevFilter(RevFilter.ALL);
-        RevCommit head = revWalk.parseCommit(repo.resolve("HEAD"));
-        revWalk.markStart(head);
-        for (RevCommit c : revWalk) { allCommits.add(c); }
-      }
+      List<RevCommit> allCommits = walkAllCommits(repo, "HEAD");
 
       // Count commits per day in the given year
       Map<String, Integer> dayCounts = new LinkedHashMap<>();
@@ -683,6 +641,36 @@ public class GitService {
     if (s == null || s.isBlank()) return null;
     try { return java.time.Instant.parse(s); }
     catch (Exception e) { return null; }
+  }
+
+  /** Compute streak and busiest-day stats from a day→count map. */
+  private Map<String, Object> computeStreakStats(Map<String, Integer> dayCounts) {
+    int longestStreak = 0, currentStreak = 0;
+    String busiestDay = ""; int busiestCount = 0;
+
+    List<java.time.LocalDate> sortedDays = dayCounts.keySet().stream()
+        .map(java.time.LocalDate::parse).sorted().toList();
+
+    int streak = 0;
+    for (int i = 0; i < sortedDays.size(); i++) {
+      if (i > 0 && sortedDays.get(i).minusDays(1).equals(sortedDays.get(i - 1))) { streak++; }
+      else { streak = 1; }
+      if (streak > longestStreak) longestStreak = streak;
+    }
+
+    java.time.LocalDate d = java.time.LocalDate.now();
+    while (dayCounts.containsKey(d.toString())) { currentStreak++; d = d.minusDays(1); }
+
+    for (var entry : dayCounts.entrySet()) {
+      if (entry.getValue() > busiestCount) { busiestCount = entry.getValue(); busiestDay = entry.getKey(); }
+    }
+
+    Map<String, Object> result = new LinkedHashMap<>();
+    result.put("longestStreak", longestStreak);
+    result.put("currentStreak", currentStreak);
+    result.put("busiestDay", busiestDay);
+    result.put("busiestDayCount", busiestCount);
+    return result;
   }
 
   /** Read a blob's content at a given file path within a commit. */

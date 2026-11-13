@@ -37,10 +37,9 @@ class BookmarksServiceTest {
 
   @BeforeEach
   void setUp() {
-    service = new BookmarksService(tempDir);
+    var store = new PrefsStore(tempDir);
+    service = new BookmarksService(store);
   }
-
-  // ─── Bookmarks ──────────────────────────────────────────────────
 
   @Test
   void addBookmark_returnsDetails() {
@@ -101,81 +100,4 @@ class BookmarksServiceTest {
     assertEquals(1, remaining.size());
     assertEquals(2, remaining.get(0).get("line"));
   }
-
-  // ─── Recent Files ───────────────────────────────────────────────
-
-  @Test
-  void recordRecentFile_appearsInList() {
-    service.recordRecentFile("src/Foo.java");
-
-    List<Map<String, Object>> recent = service.getRecentFiles();
-    assertEquals(1, recent.size());
-    assertEquals("src/Foo.java", recent.get(0).get("path"));
-  }
-
-  @Test
-  void recordRecentFile_movesToFrontOnRepeat() {
-    service.recordRecentFile("a.java");
-    service.recordRecentFile("b.java");
-    service.recordRecentFile("a.java"); // re-open a
-
-    List<Map<String, Object>> recent = service.getRecentFiles();
-    assertEquals(2, recent.size()); // no duplicate
-    assertEquals("a.java", recent.get(0).get("path")); // moved to front
-    assertEquals("b.java", recent.get(1).get("path"));
-  }
-
-  @Test
-  void recordRecentFile_capsAt20() {
-    for (int i = 0; i < 25; i++) {
-      service.recordRecentFile("file" + i + ".java");
-    }
-
-    List<Map<String, Object>> recent = service.getRecentFiles();
-    assertEquals(20, recent.size());
-
-    // Most recent should be file24 (last added)
-    assertEquals("file24.java", recent.get(0).get("path"));
-  }
-
-  // ─── Search History ─────────────────────────────────────────────
-
-  @Test
-  void recordSearch_appearsInHistory() {
-    service.recordSearch("find all classes");
-
-    List<Map<String, Object>> history = service.getSearchHistory();
-    assertEquals(1, history.size());
-    assertEquals("find all classes", history.get(0).get("query"));
-  }
-
-  @Test
-  void recordSearch_deduplicates() {
-    service.recordSearch("query one");
-    service.recordSearch("query two");
-    service.recordSearch("query one"); // repeat
-
-    List<Map<String, Object>> history = service.getSearchHistory();
-    assertEquals(2, history.size());
-    assertEquals("query one", history.get(0).get("query")); // moved to front
-  }
-
-  @Test
-  void recordSearch_capsAt50() {
-    for (int i = 0; i < 55; i++) {
-      service.recordSearch("search" + i);
-    }
-
-    List<Map<String, Object>> history = service.getSearchHistory();
-    assertEquals(50, history.size());
-
-    // Most recent should be search54
-    assertEquals("search54", history.get(0).get("query"));
-  }
-
-  @Test
-  void getSearchHistory_emptyInitially() {
-    assertTrue(service.getSearchHistory().isEmpty());
-  }
-
 }

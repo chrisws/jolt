@@ -46,10 +46,8 @@ public final class AuthConfig {
     String bootstrapToken = authService.generateToken();
 
     System.out.println();
-    System.out.println("  ┌────────────────────────────────────────────────────────────────────────┐");
-    System.out.println("  │  Jolt server ready                                                     │");
-    System.out.println("  │  Open: http://" + host + ":" + port + "/?token=" + bootstrapToken);
-    System.out.println("  └────────────────────────────────────────────────────────────────────────┘");
+    System.out.println("  Jolt server ready");
+    System.out.println("  Open: http://" + host + ":" + port + "/?token=" + bootstrapToken);
     System.out.println();
 
     final AuthService authRef = authService;
