@@ -49,15 +49,19 @@
       const errEl = document.getElementById('login-error');
       errEl.textContent = '';
 
+      console.log('[LOGIN] Submitting token:', token ? token.substring(0, 4) + '…' : '(empty)');
+
       try {
         const res = await fetch('/api/auth/login', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ token })
         });
+        const text = await res.text();
+        console.log('[LOGIN] Response:', res.status, res.ok ? 'OK' : 'FAIL', text);
         if (res.ok) { window.location.href = '/'; }
-        else { errEl.textContent = 'Invalid token'; document.getElementById('token-input').classList.add('shake'); setTimeout(() => document.getElementById('token-input').classList.remove('shake'), 500); }
-      } catch (_) { errEl.textContent = 'Connection failed'; }
+        else { errEl.textContent = 'Invalid token (' + res.status + ')'; document.getElementById('token-input').classList.add('shake'); setTimeout(() => document.getElementById('token-input').classList.remove('shake'), 500); }
+      } catch (err) { console.error('[LOGIN] Fetch error:', err); errEl.textContent = 'Connection failed'; }
     });
 
     // Focus input on load

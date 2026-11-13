@@ -13,6 +13,22 @@ import { initNavHistory } from './modules/nav-history.js';
 import { initDivider } from './modules/divider.js';
 import { initContextMenu } from './modules/context-menu.js';
 
+// ── Auth gate ──────────────────────────────────────────────
+async function checkAuth() {
+  try {
+    const res = await fetch('/api/settings');
+    if (res.status === 401) {
+      window.location.replace('/login.html');
+      return false;
+    }
+  } catch { /* network error — proceed, will show natural errors */ }
+  return true;
+}
+
+if (!(await checkAuth())) {
+  throw new Error('Auth required — redirecting to login');
+}
+
 // ── Parallel startup ──────────────────────────────────────
 
 async function loadTheme() {

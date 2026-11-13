@@ -134,6 +134,12 @@ export async function loadFileTree() {
 
   $fileTree.appendChild(header);
 
+  header.addEventListener('click', (e) => {
+    if (e.target.closest('button')) return;
+    $fileTree.classList.toggle('collapsed');
+    header.classList.toggle('collapsed');
+  });
+
   document.getElementById('tree-collapse-all').addEventListener('click', collapseAll);
   document.getElementById('tree-expand-all').addEventListener('click', expandAll);
 
