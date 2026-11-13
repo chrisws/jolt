@@ -185,24 +185,7 @@ public class LuceneIndexer implements AutoCloseable {
       List<SearchHit> hits = new ArrayList<>();
       for (var scoreDoc : topDocs.scoreDocs) {
         Document doc = searcher.storedFields().document(scoreDoc.doc);
-
-        SymbolKind kind;
-        try { kind = SymbolKind.valueOf(doc.get("kind")); }
-        catch (Exception e) { kind = SymbolKind.FILE; }
-
-        int lineStart = 0;
-        String lsStr = doc.get("_lineStartStr");
-        if (lsStr != null) { try { lineStart = Integer.parseInt(lsStr); } catch (NumberFormatException ignored) {} }
-
-        hits.add(new SearchHit(
-            doc.get("id") != null ? doc.get("id") : "",
-            kind,
-            doc.get("name") != null ? doc.get("name") : "",
-            doc.get("qualifiedName") != null ? doc.get("qualifiedName") : "",
-            doc.get("filePath") != null ? doc.get("filePath") : "",
-            lineStart,
-            scoreDoc.score
-        ));
+        hits.add(docToHit(doc, scoreDoc.score));
       }
 
       // Fuzzy fallback: if results are sparse and maxEdits > 0, supplement with FuzzyQuery
@@ -231,21 +214,7 @@ public class LuceneIndexer implements AutoCloseable {
           String id = doc.get("id") != null ? doc.get("id") : "";
           if (seenIds.contains(id)) continue;
 
-          SymbolKind kind;
-          try { kind = SymbolKind.valueOf(doc.get("kind")); } catch (Exception e) { kind = SymbolKind.FILE; }
-
-          int lineStart = 0;
-          String lsStr = doc.get("_lineStartStr");
-          if (lsStr != null) { try { lineStart = Integer.parseInt(lsStr); } catch (NumberFormatException ignored) {} }
-
-          hits.add(new SearchHit(
-              id, kind,
-              doc.get("name") != null ? doc.get("name") : "",
-              doc.get("qualifiedName") != null ? doc.get("qualifiedName") : "",
-              doc.get("filePath") != null ? doc.get("filePath") : "",
-              lineStart,
-              scoreDoc.score * 0.8f // slight penalty for fuzzy matches vs exact
-          ));
+          hits.add(docToHit(doc, scoreDoc.score * 0.8f));
 
           if (hits.size() >= maxResults) break;
         }
@@ -328,24 +297,7 @@ public class LuceneIndexer implements AutoCloseable {
         int docId = (int) scored.get(i)[0];
         float score = scored.get(i)[1];
         Document doc = reader.storedFields().document(docId);
-
-        SymbolKind kind;
-        try { kind = SymbolKind.valueOf(doc.get("kind")); }
-        catch (Exception e) { kind = SymbolKind.FILE; }
-
-        int lineStart = 0;
-        String lsStr = doc.get("_lineStartStr");
-        if (lsStr != null) { try { lineStart = Integer.parseInt(lsStr); } catch (NumberFormatException ignored) {} }
-
-        hits.add(new SearchHit(
-            doc.get("id") != null ? doc.get("id") : "",
-            kind,
-            doc.get("name") != null ? doc.get("name") : "",
-            doc.get("qualifiedName") != null ? doc.get("qualifiedName") : "",
-            doc.get("filePath") != null ? doc.get("filePath") : "",
-            lineStart,
-            score
-        ));
+        hits.add(docToHit(doc, score));
       }
       return hits;
     }
@@ -405,22 +357,7 @@ public class LuceneIndexer implements AutoCloseable {
       List<SearchHit> hits = new ArrayList<>();
       for (var scoreDoc : topDocs.scoreDocs) {
         Document doc = searcher.storedFields().document(scoreDoc.doc);
-        SymbolKind kind;
-        try { kind = SymbolKind.valueOf(doc.get("kind")); } catch (Exception e) { kind = SymbolKind.FILE; }
-
-        int lineStart = 0;
-        String lsStr = doc.get("_lineStartStr");
-        if (lsStr != null) { try { lineStart = Integer.parseInt(lsStr); } catch (NumberFormatException ignored) {} }
-
-        hits.add(new SearchHit(
-            doc.get("id") != null ? doc.get("id") : "",
-            kind,
-            doc.get("name") != null ? doc.get("name") : "",
-            doc.get("qualifiedName") != null ? doc.get("qualifiedName") : "",
-            doc.get("filePath") != null ? doc.get("filePath") : "",
-            lineStart,
-            scoreDoc.score
-        ));
+        hits.add(docToHit(doc, scoreDoc.score));
       }
 
       // Phase 2: If prefix gave fewer results than limit, supplement with FuzzyQuery
@@ -442,21 +379,7 @@ public class LuceneIndexer implements AutoCloseable {
           String id = doc.get("id") != null ? doc.get("id") : "";
           if (seenIds.contains(id)) continue;
 
-          SymbolKind kind;
-          try { kind = SymbolKind.valueOf(doc.get("kind")); } catch (Exception e) { kind = SymbolKind.FILE; }
-
-          int lineStart = 0;
-          String lsStr = doc.get("_lineStartStr");
-          if (lsStr != null) { try { lineStart = Integer.parseInt(lsStr); } catch (NumberFormatException ignored) {} }
-
-          hits.add(new SearchHit(
-              id, kind,
-              doc.get("name") != null ? doc.get("name") : "",
-              doc.get("qualifiedName") != null ? doc.get("qualifiedName") : "",
-              doc.get("filePath") != null ? doc.get("filePath") : "",
-              lineStart,
-              scoreDoc.score * 0.8f // slight penalty for fuzzy matches vs prefix
-          ));
+          hits.add(docToHit(doc, scoreDoc.score * 0.8f));
 
           if (hits.size() >= limit) break;
         }
@@ -480,6 +403,27 @@ public class LuceneIndexer implements AutoCloseable {
   }
 
   private static org.apache.lucene.analysis.Analyzer ANALYZER = new org.apache.lucene.analysis.standard.StandardAnalyzer();
+
+  /** Convert a Lucene Document to a SearchHit with the given score. */
+  private static SearchHit docToHit(Document doc, float score) {
+    SymbolKind kind;
+    try { kind = SymbolKind.valueOf(doc.get("kind")); }
+    catch (Exception e) { kind = SymbolKind.FILE; }
+
+    int lineStart = 0;
+    String lsStr = doc.get("_lineStartStr");
+    if (lsStr != null) { try { lineStart = Integer.parseInt(lsStr); } catch (NumberFormatException ignored) {} }
+
+    return new SearchHit(
+        doc.get("id") != null ? doc.get("id") : "",
+        kind,
+        doc.get("name") != null ? doc.get("name") : "",
+        doc.get("qualifiedName") != null ? doc.get("qualifiedName") : "",
+        doc.get("filePath") != null ? doc.get("filePath") : "",
+        lineStart,
+        score
+    );
+  }
 
   private static String fileName(String path) {
     int idx = path.lastIndexOf('/');

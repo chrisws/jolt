@@ -393,7 +393,7 @@ public class CppParser {
     return new FieldSymbol(name, typeStr, line, line, "public");
   }
 
-  // ─── Helpers ─────────────────────────────────────────────────────────────────
+  // ─── Helpers ───
 
   /** Find an existing synthetic class in the list or create a new one. */  
   private static ClassSymbol findOrCreate(List<ClassSymbol> out, String fqn, String name, String filePath) {  

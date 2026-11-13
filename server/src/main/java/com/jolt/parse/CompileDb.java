@@ -134,7 +134,7 @@ public class CompileDb {
   /** Whether any entries were loaded. */
   public boolean isEmpty() { return entries.isEmpty(); }
 
-  // ─── internal ────────────────────────────────────────────────────────────────
+  // ─── internal ───
 
   /**
    * Tokenise a compiler command and extract only the flags we need for AST extraction.
