@@ -465,4 +465,85 @@ class GitServiceTest {
     assertTrue(svc.activity(2025).isEmpty());
   }
 
+  // ─── Write-method tests: commit, push, pull, remotes, stage, unstage ───
+
+
+  @Test
+  void stageAll_returnsTrue() throws Exception {
+    // Close setUp git to release the repo lock (write ops need exclusive access)
+    git.close();
+
+    // stageAll on a valid repo should succeed (no changes is fine)
+    boolean result = service.stageAll();
+    assertTrue(result);
+  }
+
+  @Test
+  void unstageFile_returnsTrue() throws Exception {
+    // Modify an existing tracked file and stage it
+    Path file = tempDir.resolve("world.txt");
+    Files.writeString(file, "modified for unstage test\n");
+
+    // Stage it via JGit, then close to release the lock
+    git.add().addFilepattern("world.txt").call();
+    git.close();
+
+    // Unstage via service — should return true (git reset HEAD -- <path>)
+    boolean result = service.unstageFile("world.txt");
+    assertTrue(result);
+
+    // Verify the file is now shown as modified (unstaged) in status
+    try (Git g = Git.open(tempDir.toFile())) {
+      var status = g.status().call();
+      assertFalse(status.getUncommittedChanges().isEmpty());
+    }
+  }
+
+  @Test
+  void push_returnsFalseForNoRemote() throws Exception {
+    // No remote is configured in the setUp repo — push should fail gracefully
+    git.close();
+    boolean result = service.push("origin", "main");
+    assertFalse(result);
+  }
+
+  @Test
+  void pull_returnsFalseForNoRemote() throws Exception {
+    // No remote is configured in the setUp repo — pull should fail gracefully
+    git.close();
+    boolean result = service.pull("origin", "main");
+    assertFalse(result);
+  }
+
+  @Test
+  void commit_returnsNonNullHash() throws Exception {
+    // Modify an existing tracked file so there's something to commit
+    Path file = tempDir.resolve("hello.txt");
+    Files.writeString(file, "modified for commit test\n");
+
+    // Close setUp git to release the repo lock, then stage via service
+    git.close();
+
+    // Stage via service
+    assertTrue(service.stageAll());
+
+    // Commit via service — should return a non-null hash
+    String hash = service.commit("test commit message", "Test User", "test@test.com");
+    assertNotNull(hash);
+    assertFalse(hash.isBlank());
+
+    // Verify the commit exists in the log
+    List<Map<String, Object>> commits = service.log(1, null, null);
+    assertEquals("test commit message", commits.get(0).get("message"));
+  }
+
+  @Test
+  void remotes_returnsEmptyForFreshRepo() throws Exception {
+    // The repo created in setUp has no remotes configured
+    git.close();
+    List<String> remotes = service.remotes();
+    assertNotNull(remotes);
+    assertTrue(remotes.isEmpty());
+  }
+
 }

@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Jolt — Unlock</title>
+  <style>
+    :root { --bg: #0d1117; --surface: #161b22; --text: #e6edf3; --text-muted: #6c7086; --accent: #58a6ff; --border: #30363d; }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; display: flex; align-items: center; justify-content: center; min-height: 100vh; }
+    .login-card { text-align: center; padding: 2rem; }
+    .mascot { margin-bottom: 1.5rem; }
+    h1 { font-size: 2rem; font-weight: 700; margin-bottom: 0.5rem; }
+    p { color: var(--text-muted); font-size: 0.9rem; margin-bottom: 1.5rem; }
+    input[type="text"] { background: var(--surface); border: 1px solid var(--border); color: var(--text); font-family: 'SF Mono', 'Fira Code', monospace; font-size: 1rem; padding: 0.6rem 1rem; border-radius: 6px; width: 320px; text-align: center; outline: none; transition: border-color 0.2s; }
+    input[type="text"]:focus { border-color: var(--accent); }
+    button { background: var(--accent); color: #fff; border: none; padding: 0.6rem 1.5rem; border-radius: 6px; font-size: 1rem; cursor: pointer; margin-top: 1rem; transition: opacity 0.2s; }
+    button:hover { opacity: 0.85; }
+    .error { color: #f85149; font-size: 0.85rem; margin-top: 0.75rem; min-height: 1.2em; }
+    @keyframes shake { 0%,100%{transform:translateX(0)} 20%,60%{transform:translateX(-6px)} 40%,80%{transform:translateX(6px)} }
+    .shake { animation: shake 0.4s ease; }
+  </style>
+</head>
+<body>
+  <div class="login-card">
+    <div class="mascot" aria-hidden="true">
+      <svg viewBox="0 0 120 170" width="64" height="91" xmlns="http://www.w3.org/2000/svg">
+        <path d="M68 8 L34 74 L56 74 L44 162 L88 62 L63 62 Z" fill="#FFD700" stroke="#E6A800" stroke-width="2.5" stroke-linejoin="round"/>
+      </svg>
+    </div>
+    <h1>Jolt</h1>
+    <p>Enter your session token to unlock</p>
+    <form id="login-form">
+      <input type="text" id="token-input" placeholder="Paste token…" autocomplete="off" spellcheck="false">
+      <br>
+      <button type="submit">Unlock</button>
+    </form>
+    <div class="error" id="login-error"></div>
+  </div>
+  <script>
+    // Auto-fill token from URL query param
+    const params = new URLSearchParams(window.location.search);
+    const urlToken = params.get('token');
+    if (urlToken) document.getElementById('token-input').value = urlToken;
+
+    document.getElementById('login-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const token = document.getElementById('token-input').value.trim();
+      const errEl = document.getElementById('login-error');
+      errEl.textContent = '';
+
+      try {
+        const res = await fetch('/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token })
+        });
+        if (res.ok) { window.location.href = '/'; }
+        else { errEl.textContent = 'Invalid token'; document.getElementById('token-input').classList.add('shake'); setTimeout(() => document.getElementById('token-input').classList.remove('shake'), 500); }
+      } catch (_) { errEl.textContent = 'Connection failed'; }
+    });
+
+    // Focus input on load
+    document.getElementById('token-input').focus();
+  </script>
+</body>
+</html>

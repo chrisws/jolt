@@ -1,3 +1,5 @@
+import { authFetch } from './url-utils.js';
+
 const $bookmarks = document.getElementById('bookmark-list');
 const $recent    = document.getElementById('recent-list');
 const $feedbackModal = document.getElementById('feedback-modal');
@@ -67,7 +69,7 @@ async function loadBookmarks() {
 
 async function addBookmark(path, line, label) {
   try {
-    await fetch('/api/bookmarks', {
+    await authFetch('/api/bookmarks', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ path, line, label: label || path.split('/').pop() })
@@ -78,7 +80,7 @@ async function addBookmark(path, line, label) {
 
 async function deleteBookmark(bm) {
   try {
-    await fetch('/api/bookmarks', {
+    await authFetch('/api/bookmarks', {
       method: 'DELETE',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ path: bm.path, line: bm.line })
@@ -207,7 +209,7 @@ async function submitFeedback(e) {
   const message = document.getElementById('fb-message').value;
 
   try {
-    await fetch('/api/feedback', {
+    await authFetch('/api/feedback', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ page, file, message })
@@ -278,7 +280,7 @@ async function loadGitChanges() {
       if (type === 'untracked') {
         el.querySelector('.gc-add-btn').addEventListener('click', async (ev) => {
           ev.stopPropagation();
-          const r = await fetch('/api/git/add?path=' + encodeURIComponent(p), { method: 'POST' });
+          const r = await authFetch('/api/git/add?path=' + encodeURIComponent(p), { method: 'POST' });
           if (r.ok) loadGitChanges();
         });
       }

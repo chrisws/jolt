@@ -2,7 +2,7 @@ import { state, showEmptyState } from './tabs.js';
 import { loadFile } from './file-viewer.js';
 import { closeSearch } from './search.js';
 import { closeSettings } from './settings.js';
-import { renderGitStats, renderCommitList, renderCommitDetail } from './git-pages.js';
+import { renderGitStats, renderCommitList, renderCommitDetail, renderGitChanges } from './git-pages.js';
 import { parseRoute, getShareableUrl as buildShareableUrl } from './url-utils.js';
 
 const $viewer = document.getElementById('code-viewer');
@@ -87,6 +87,7 @@ function route() {
     document.querySelector('.breadcrumb').style.display = 'none';
 
     if (parts.length === 1) { renderGitStats(); }
+    else if (parts[1] === 'changes') { renderGitChanges(); }
     else if (parts[1] === 'commits' && parts[2]) { renderCommitDetail(parts[2]); }
     else if (parts[1] === 'commits') { renderCommitList(parts.slice(2)); }
     else { renderGitStats(); }

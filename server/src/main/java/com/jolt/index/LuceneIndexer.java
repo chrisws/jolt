@@ -60,6 +60,7 @@ public class LuceneIndexer implements AutoCloseable {
     doc.add(new StoredField("id", filePath));
     doc.add(new StoredField("kind", SymbolKind.FILE.name()));
     doc.add(new StoredField("name", fileName(filePath)));
+    doc.add(new StringField("nameKw", fileName(filePath).toLowerCase(), Field.Store.NO));
     doc.add(new StoredField("filePath", filePath));
     doc.add(new TextField("body", content, Field.Store.YES));
     doc.add(new StringField("tokens", content.toLowerCase(), Field.Store.NO));
@@ -392,8 +393,12 @@ public class LuceneIndexer implements AutoCloseable {
     searcherMgr.maybeRefresh();
     IndexSearcher searcher = searcherMgr.acquire();
     try {
-      // Phase 1: PrefixQuery on "name" field (fast, exact prefix)
-      Query prefixQ = new PrefixQuery(new Term("name", query.toLowerCase()));
+      // Phase 1: PrefixQuery on "name" + "nameKw" fields (fast, exact prefix)
+      String qLower = query.toLowerCase();
+      Query prefixQ = new BooleanQuery.Builder()
+          .add(new PrefixQuery(new Term("name", qLower)), BooleanClause.Occur.SHOULD)
+          .add(new PrefixQuery(new Term("nameKw", qLower)), BooleanClause.Occur.SHOULD)
+          .build();
 
       TopDocs topDocs = searcher.search(prefixQ, limit);
 
@@ -421,7 +426,10 @@ public class LuceneIndexer implements AutoCloseable {
       // Phase 2: If prefix gave fewer results than limit, supplement with FuzzyQuery
       if (hits.size() < limit && query.length() >= 3) {
         int maxEdits = query.length() <= 4 ? 1 : 2; // tighter for short queries
-        Query fuzzyQ = new FuzzyQuery(new Term("name", query.toLowerCase()), maxEdits);
+        Query fuzzyQ = new BooleanQuery.Builder()
+            .add(new FuzzyQuery(new Term("name", qLower), maxEdits), BooleanClause.Occur.SHOULD)
+            .add(new FuzzyQuery(new Term("nameKw", qLower), maxEdits), BooleanClause.Occur.SHOULD)
+            .build();
 
         TopDocs fuzzyDocs = searcher.search(fuzzyQ, limit - hits.size());
 

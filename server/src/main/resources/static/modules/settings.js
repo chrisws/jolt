@@ -1,3 +1,4 @@
+import { authFetch } from './url-utils.js';
  const $settingsPanel = document.getElementById('settings-panel');
 const $settingsBtn   = document.getElementById('settings-btn');
 const $settingsClose = document.getElementById('settings-close');
@@ -12,7 +13,7 @@ export function closeSettings() { $settingsPanel.classList.remove('open'); $sett
 
 async function loadSettings() {
   try {
-    const res = await fetch('/api/settings');
+    const res = await authFetch('/api/settings');
     const s = await res.json();
 
     document.getElementById('set-fuzzy-edits').value   = s['search.fuzzy.maxEdits'] ?? 2;
@@ -39,7 +40,7 @@ async function saveSettings() {
   $settingsSave.disabled = true;
 
   try {
-    const res = await fetch('/api/settings', {
+    const res = await authFetch('/api/settings', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)

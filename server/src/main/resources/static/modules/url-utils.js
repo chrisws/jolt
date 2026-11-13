@@ -35,3 +35,18 @@ export function getShareableUrl(base, filePath, line, symbol) {
   const qs = params.toString();
   return base + (qs ? '?' + qs : '');
 }
+
+/* ── Auth-aware fetch wrapper ── */
+
+const MUTATING_METHODS = new Set(['POST', 'PUT', 'DELETE', 'PATCH']);
+
+export function authFetch(url, options = {}) {
+  const method = (options.method || 'GET').toUpperCase();
+  if (MUTATING_METHODS.has(method)) {
+    options.headers = { 'X-Jolt-Request': 'true', ...(options.headers || {}) };
+  }
+  return fetch(url, options).then(res => {
+    if (res.status === 401) { window.location.href = '/login.html'; throw new Error('unauthorized'); }
+    return res;
+  });
+}

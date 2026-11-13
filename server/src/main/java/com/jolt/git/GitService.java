@@ -28,6 +28,7 @@ import org.eclipse.jgit.lib.Repository;
 import org.eclipse.jgit.revwalk.RevCommit;
 import org.eclipse.jgit.revwalk.RevWalk;
 import org.eclipse.jgit.revwalk.filter.RevFilter;
+import org.eclipse.jgit.transport.RefSpec;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -891,6 +892,112 @@ public class GitService {
     }
 
     return sb.toString();
+  }
+
+  /** Stage all changes (equivalent to `git add .`). */
+  public boolean stageAll() {
+    try (Git git = Git.open(homeDir.toFile())) {
+      git.add().addFilepattern(".").call();
+      return true;
+    } catch (Exception e) {
+      log.error("Failed to stage all files: {}", e.getMessage());
+      return false;
+    }
+  }
+
+  /** Unstage a file (remove from index, keep working-tree changes). */
+  public boolean unstageFile(String path) {
+    try {
+      var process = new ProcessBuilder("git", "reset", "HEAD", "--", path)
+          .directory(homeDir.toFile())
+          .redirectErrorStream(true)
+          .start();
+
+      int exitCode = process.waitFor();
+      if (exitCode != 0) {
+        String error = new String(process.getInputStream().readAllBytes());
+        log.error("git reset failed for {}: {}", path, error);
+        return false;
+      }
+
+      log.debug("Unstaged file: {}", path);
+      return true;
+    } catch (Exception e) {
+      log.error("Failed to unstage file {}: {}", path, e.getMessage());
+      return false;
+    }
+  }
+
+  /** Commit staged changes. Returns the new commit hash, or null on failure. */
+  public String commit(String message, String authorName, String authorEmail) {
+    try (Git git = Git.open(homeDir.toFile())) {
+      PersonIdent ident = new PersonIdent(
+          authorName != null ? authorName : "Jolt User",
+          authorEmail != null ? authorEmail : "jolt@localhost");
+
+      var commitResult = git.commit()
+          .setMessage(message)
+          .setAuthor(ident)
+          .setCommitter(ident)
+          .call();
+
+      String hash = commitResult.getName();
+      log.info("Created commit {} by {}", hash, ident.getName());
+      return hash;
+    } catch (Exception e) {
+      log.error("Commit failed: {}", e.getMessage());
+      return null;
+    }
+  }
+
+  /** Push to a remote. Returns true on success. */
+  public boolean push(String remote, String branch) {
+    try (Git git = Git.open(homeDir.toFile())) {
+      var pushCmd = git.push().setRemote(remote);
+
+      String ref = (branch != null && !branch.isBlank()) ? branch : currentBranch();
+      pushCmd.setRefSpecs(new RefSpec("refs/heads/" + ref + ":refs/heads/" + ref));
+
+      pushCmd.call();
+
+      log.info("Pushed to {} ({})", remote, ref);
+      return true;
+    } catch (Exception e) {
+      log.error("Push to {} failed: {}", remote, e.getMessage());
+      return false;
+    }
+  }
+
+  /** Pull from a remote. Returns true on success. */
+  public boolean pull(String remote, String branch) {
+    try (Git git = Git.open(homeDir.toFile())) {
+      var pullCmd = git.pull().setRemote(remote);
+
+      if (branch != null && !branch.isBlank()) {
+        pullCmd.setRemoteBranchName(branch);
+      } else {
+        String current = currentBranch();
+        pullCmd.setRemoteBranchName(current);
+      }
+
+      pullCmd.call();
+
+      log.info("Pulled from {} ({})", remote, branch != null ? branch : "current");
+      return true;
+    } catch (Exception e) {
+      log.error("Pull from {} failed: {}", remote, e.getMessage());
+      return false;
+    }
+  }
+
+  /** List configured remote names. */
+  public List<String> remotes() {
+    try (Git git = Git.open(homeDir.toFile())) {
+      return new ArrayList<>(git.getRepository().getConfig().getSubsections("remote"));
+    } catch (Exception e) {
+      log.warn("Failed to list remotes: {}", e.getMessage());
+      return new ArrayList<>();
+    }
   }
 
 }

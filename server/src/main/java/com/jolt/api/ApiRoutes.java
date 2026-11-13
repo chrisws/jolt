@@ -62,7 +62,9 @@ private EmbeddingService embedder; // nullable — null if model file missing
 
   public void setDebugManager(DebugManager mgr) { this.debugMgr = mgr; }
 
-  public ApiRoutes(SymbolTable symbolTable, LuceneIndexer indexer, Path homeDir, CallGraph callGraph, EmbeddingService embedder) {
+  private final boolean readonly;
+
+  public ApiRoutes(SymbolTable symbolTable, LuceneIndexer indexer, Path homeDir, CallGraph callGraph, EmbeddingService embedder, boolean readonly) {
     this.symbolTable = symbolTable;
     this.indexer = indexer;
     this.homeDir = homeDir.toAbsolutePath().normalize();
@@ -74,6 +76,7 @@ private EmbeddingService embedder; // nullable — null if model file missing
     this.settingsSvc = new SettingsService(this.homeDir);
     this.keybindingsSvc = new KeybindingsService();
     this.embedder = embedder; // nullable — passed from ServerBootstrap
+    this.readonly = readonly;
   }
 
   /** Register all routes on the given Javalin app. */
@@ -851,6 +854,83 @@ String branch = ctx.body();
       ctx.result(patch);
     });
 
+    // --- Git Write Operations (disabled in readonly mode) ---
+    if (!readonly) {
+      var audit = new GitAuditLog(homeDir);
+
+      routes.post("/api/git/stage-all", ctx -> {
+        boolean ok = gitSvc.stageAll();
+        if (ok) audit.log("STAGE_ALL", null);
+        ctx.status(ok ? 200 : 500).json(Map.of("ok", ok));
+      });
+
+      routes.post("/api/git/unstage", ctx -> {
+        String path = ctx.queryParam("path");
+        if (path == null || path.isBlank()) { ctx.status(400).result("Missing 'path' parameter"); return; }
+        boolean ok = gitSvc.unstageFile(path);
+        if (ok) audit.log("UNSTAGE", path);
+        ctx.status(ok ? 200 : 500).json(Map.of("ok", ok));
+      });
+
+      routes.post("/api/git/commit", ctx -> {
+        String body = ctx.body();
+        String message = null, authorName = null, authorEmail = null;
+
+        try {
+          var node = new com.fasterxml.jackson.databind.ObjectMapper().readTree(body);
+          message = node.has("message") ? node.get("message").asText() : null;
+          authorName = node.has("authorName") ? node.get("authorName").asText() : null;
+          authorEmail = node.has("authorEmail") ? node.get("authorEmail").asText() : null;
+        } catch (Exception e) { /* fall through */ }
+
+        if (message == null || message.isBlank()) { ctx.status(400).result("Missing 'message' field"); return; }
+
+        String hash = gitSvc.commit(message, authorName, authorEmail);
+        if (hash == null) { ctx.status(500).json(Map.of("error", "Commit failed")); return; }
+
+        audit.log("COMMIT", hash);
+        ctx.json(Map.of("hash", hash));
+      });
+
+      routes.get("/api/git/remotes", ctx -> {
+        List<String> remotes = gitSvc.remotes();
+        ctx.json(remotes);
+      });
+
+      routes.post("/api/git/push", ctx -> {
+        String body = ctx.body();
+        String remote = null, branch = null;
+
+        try {
+          var node = new com.fasterxml.jackson.databind.ObjectMapper().readTree(body);
+          remote = node.has("remote") ? node.get("remote").asText() : null;
+          branch = node.has("branch") ? node.get("branch").asText() : null;
+        } catch (Exception e) { /* fall through */ }
+
+        if (remote == null || remote.isBlank()) { ctx.status(400).result("Missing 'remote' field"); return; }
+
+        boolean ok = gitSvc.push(remote, branch);
+        if (ok) audit.log("PUSH", remote + (branch != null ? "/" + branch : ""));
+        ctx.status(ok ? 200 : 500).json(Map.of("ok", ok));
+      });
+
+      routes.post("/api/git/pull", ctx -> {
+        String body = ctx.body();
+        String remote = null, branch = null;
+
+        try {
+          var node = new com.fasterxml.jackson.databind.ObjectMapper().readTree(body);
+          remote = node.has("remote") ? node.get("remote").asText() : null;
+          branch = node.has("branch") ? node.get("branch").asText() : null;
+        } catch (Exception e) { /* fall through */ }
+
+        if (remote == null || remote.isBlank()) { ctx.status(400).result("Missing 'remote' field"); return; }
+
+        boolean ok = gitSvc.pull(remote, branch);
+        if (ok) audit.log("PULL", remote + (branch != null ? "/" + branch : ""));
+        ctx.status(ok ? 200 : 500).json(Map.of("ok", ok));
+      });
+    }
 
     // --- Debug ---
     registerDebugRoutes(app);

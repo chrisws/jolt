@@ -1,3 +1,4 @@
+import { authFetch } from './url-utils.js';
 const $selector = document.getElementById('branch-selector');
 const $name = document.getElementById('branch-name');
 const $dropdown = document.getElementById('branch-dropdown');
@@ -84,7 +85,7 @@ async function checkoutBranch(name) {
   $name.textContent = name + '…';
 
   try {
-    const res = await fetch('/api/git/checkout', {
+    const res = await authFetch('/api/git/checkout', {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain' },
       body: name,

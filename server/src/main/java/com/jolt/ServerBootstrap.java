@@ -19,6 +19,7 @@
 package com.jolt;
 
  import com.jolt.api.ApiRoutes;
+ import com.jolt.api.AuthService;
  import com.jolt.api.SettingsService;
  import com.jolt.api.WsHub;
  import com.jolt.debug.DebugManager;
@@ -48,7 +49,7 @@ package com.jolt;
 
    private static final Logger log = LoggerFactory.getLogger(ServerBootstrap.class);  
 
-   public static void start(Path homeDir, int port, String host, Path indexPath) throws Exception {
+   public static void start(Path homeDir, int port, String host, Path indexPath, boolean readonly) throws Exception {
      homeDir = homeDir.toAbsolutePath().normalize();
 
      // ─── Indexing phase ────────────────────────────────────── 
@@ -145,6 +146,82 @@ package com.jolt;
 
      Javalin app = Javalin.create(cfg -> cfg.staticFiles.add("/static", Location.CLASSPATH));
 
+     // ─── Auth setup ──────────────────────────────────────
+     AuthService authService = null;
+     if (!readonly) {
+       authService = new AuthService();
+       String bootstrapToken = authService.generateToken();
+
+       System.out.println();
+       System.out.println("  ┌──────────────────────────────────────────────────────┐");
+       System.out.println("  │  Jolt server ready                                  │");
+       System.out.println("  │  Open: http://" + host + ":" + port + "/?token=" + bootstrapToken);
+       System.out.println("  └──────────────────────────────────────────────────────┘");
+       System.out.println();
+
+       // Before-filter: auth + CSRF on all routes except static/login
+       final AuthService authRef = authService;
+       app.unsafe.routes.before(ctx -> {
+         String path = ctx.path();
+
+         // Public paths: static files, root, login page, login endpoint
+         if (path.startsWith("/static/") || path.equals("/") || path.equals("/login.html")
+             || path.equals("/api/auth/login")) {
+           return;
+         }
+
+         // Auth check for /api/* and /ws
+         if (path.startsWith("/api/") || path.startsWith("/ws")) {
+           var cookie = ctx.cookie(AuthService.COOKIE_NAME);
+           if (cookie == null || !authRef.isValidSession(cookie)) {
+             if (path.startsWith("/api/")) {
+               ctx.status(401).json(java.util.Map.of("error", "unauthorized"));
+             } else {
+               ctx.status(401);
+             }
+             ctx.result("");
+             return;
+           }
+
+           // CSRF check on state-changing methods
+           var method = ctx.method();
+           if (method == io.javalin.http.HandlerType.POST || method == io.javalin.http.HandlerType.PUT
+               || method == io.javalin.http.HandlerType.DELETE || method == io.javalin.http.HandlerType.PATCH) {
+             if (!"true".equals(ctx.header("X-Jolt-Request"))) {
+               ctx.status(403).json(java.util.Map.of("error", "csrf rejected"));
+               ctx.result("");
+               return;
+             }
+           }
+         }
+       });
+
+       // Login endpoint
+       app.unsafe.routes.post("/api/auth/login", ctx -> {
+         String loginToken = null;
+         // Try query param first, then JSON body
+         loginToken = ctx.queryParam("token");
+         if (loginToken == null || loginToken.isBlank()) {
+           try {
+             var body = ctx.bodyAsClass(java.util.Map.class);
+             if (body != null) loginToken = (String) body.get("token");
+           } catch (Exception ignored) {}
+         }
+
+         String sessionValue = authRef.exchangeToken(loginToken);
+         if (sessionValue == null) {
+           ctx.status(401).json(java.util.Map.of("error", "invalid token"));
+           return;
+         }
+
+         ctx.header("Set-Cookie", AuthService.COOKIE_NAME + "=" + sessionValue + "; Path=/; HttpOnly; SameSite=Strict");
+         ctx.json(java.util.Map.of("ok", true));
+       });
+
+     } else {
+       log.info("Running in read-only mode — no auth, no git write operations");
+     }
+
      // Load optional embedding model for semantic search (shared by WsHub + ApiRoutes)
      EmbeddingService embedder = null;
      try {
@@ -163,7 +240,7 @@ package com.jolt;
      WsHub wsHub = new WsHub(indexer, embedder);
      wsHub.register(app);
 
-     ApiRoutes routes = new ApiRoutes(symbolTable, indexer, homeDir, callGraph, embedder);
+     ApiRoutes routes = new ApiRoutes(symbolTable, indexer, homeDir, callGraph, embedder, readonly);
 
      // Settings service (shared by debug manager and API routes)
      SettingsService settingsService = new SettingsService(homeDir);

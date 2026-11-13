@@ -45,7 +45,8 @@ public class JoltApp implements Callable<Integer> {
   @Option(names = "--host", description = "Bind address (default: localhost)") String host = "localhost";  
   @Option(names = "--index", description = "Lucene index dir") Path indexPath;  
   @Option(names = {"--log-level"}, description = "Log level") String logLevel = "INFO";  
-  @Option(names = "--reindex", description = "Force re-index") boolean reindex;  
+  @Option(names = "--reindex", description = "Force re-index") boolean reindex;
+  @Option(names = "--readonly", description = "Read-only mode: no auth, no git write operations") boolean readonly;  
 
   public static void main(String[] args) { System.exit(new CommandLine(new JoltApp()).execute(args)); }
 
@@ -59,7 +60,7 @@ public class JoltApp implements Callable<Integer> {
 
     log.info("Jolt starting | home={} | port={} | host={} | index={}", homeDir, port, host, idxPath);
 
-    ServerBootstrap.start(homeDir, port, host, idxPath);
+    ServerBootstrap.start(homeDir, port, host, idxPath, readonly);
 
     return 0;
   }

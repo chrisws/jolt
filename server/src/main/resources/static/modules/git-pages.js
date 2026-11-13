@@ -1,4 +1,5 @@
 import { renderInlineDiff } from './diff-utils.js';
+import { authFetch } from './url-utils.js';
 
 const $viewer = document.getElementById('code-viewer');
 
@@ -438,4 +439,237 @@ export async function renderHeatmap(year) {
     });
 
   } catch (err) { console.error('Heatmap failed:', err); }
+}
+
+/* ── Git Changes (Working Tree) ──────────────────── */
+
+export async function renderGitChanges() {
+  $viewer.innerHTML = '<div class="loading">Loading working tree…</div>';
+
+  try {
+    const res = await fetch('/api/git/status?untracked=true');
+    const files = await res.json();
+
+    const remotesRes = await fetch('/api/git/remotes');
+    const remotes = await remotesRes.json();
+
+    let html = '<div class="git-page">';
+    html += '<div class="git-header"><h1>Changes</h1><a href="#/git" class="git-nav-link">&larr; Stats</a></div>';
+
+    // ── Working Tree Status ──
+    html += '<div class="section-block"><h2>Working Tree</h2>';
+
+    if (files.length === 0) {
+      html += '<div class="empty-state"><span>✓ Working tree is clean</span></div>';
+    } else {
+      // Group by type
+      const modified = files.filter(f => f.type === 'modified');
+      const deleted = files.filter(f => f.type === 'deleted');
+      const untracked = files.filter(f => f.type === 'untracked');
+
+      if (modified.length > 0) {
+        html += '<div class="wt-group"><div class="wt-group-label">Modified</div>';
+        for (const f of modified) {
+          html += wtFileRow(f.path, 'modified');
+        }
+        html += '</div>';
+      }
+
+      if (deleted.length > 0) {
+        html += '<div class="wt-group"><div class="wt-group-label">Deleted</div>';
+        for (const f of deleted) {
+          html += wtFileRow(f.path, 'deleted');
+        }
+        html += '</div>';
+      }
+
+      if (untracked.length > 0) {
+        html += '<div class="wt-group"><div class="wt-group-label">Untracked</div>';
+        for (const f of untracked) {
+          html += wtFileRow(f.path, 'untracked');
+        }
+        html += '</div>';
+      }
+
+      // Stage All button
+      html += '<div class="wt-actions"><button id="btn-stage-all" class="btn-small">Stage All</button></div>';
+    }
+
+    html += '</div>';
+
+    // ── Commit Section ──
+    html += '<div class="section-block"><h2>Commit</h2>';
+    html += '<textarea id="commit-msg" rows="3" placeholder="Commit message…"></textarea>';
+    html += '<div class="commit-author-row">';
+    html += '<input type="text" id="commit-author-name" placeholder="Author name (optional)">';
+    html += '<input type="text" id="commit-author-email" placeholder="Author email (optional)">';
+    html += '</div>';
+    html += '<button id="btn-commit" class="btn-primary">Commit</button>';
+    html += '</div>';
+
+    // ── Push / Pull Section ──
+    if (remotes.length > 0) {
+      html += '<div class="section-block"><h2>Push / Pull</h2>';
+      html += '<div class="push-pull-row">';
+
+      let remoteOpts = '';
+      for (const r of remotes) {
+        remoteOpts += '<option value="' + esc(r) + '">' + esc(r) + '</option>';
+      }
+
+      html += '<select id="push-pull-remote">' + remoteOpts + '</select>';
+      html += '<input type="text" id="push-pull-branch" placeholder="Branch (default: current)">';
+
+      html += '<button id="btn-push" class="btn-small">Push</button>';
+      html += '<button id="btn-pull" class="btn-small">Pull</button>';
+      html += '</div></div>';
+    }
+
+    html += '</div>';
+    $viewer.innerHTML = html;
+
+    // ── Event Listeners ──
+
+    // Stage / Unstage per file
+    document.querySelectorAll('.wt-stage-btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const path = btn.dataset.path;
+        const isStaged = btn.dataset.staged === 'true';
+
+        if (isStaged) {
+          // Unstage
+          const res = await authFetch('/api/git/unstage?path=' + encodeURIComponent(path), { method: 'POST' });
+          if (res.ok) { btn.textContent = 'Stage'; btn.dataset.staged = 'false'; }
+        } else {
+          // Stage
+          const res = await authFetch('/api/git/add?path=' + encodeURIComponent(path), { method: 'POST' });
+          if (res.ok) { btn.textContent = 'Unstage'; btn.dataset.staged = 'true'; }
+        }
+      });
+    });
+
+    // Stage All
+    const $stageAll = document.getElementById('btn-stage-all');
+    if ($stageAll) {
+      $stageAll.addEventListener('click', async () => {
+        const res = await authFetch('/api/git/stage-all', { method: 'POST' });
+        if (res.ok) renderGitChanges(); // refresh to show updated state
+      });
+    }
+
+    // Commit
+    const $commitBtn = document.getElementById('btn-commit');
+    if ($commitBtn) {
+      $commitBtn.addEventListener('click', async () => {
+        const message = document.getElementById('commit-msg').value.trim();
+        if (!message) { alert('Please enter a commit message.'); return; }
+
+        const authorName = document.getElementById('commit-author-name').value.trim() || null;
+        const authorEmail = document.getElementById('commit-author-email').value.trim() || null;
+
+        $commitBtn.disabled = true;
+        $commitBtn.textContent = 'Committing…';
+
+        try {
+          const res = await authFetch('/api/git/commit', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ message, authorName, authorEmail }),
+          });
+
+          if (res.ok) {
+            const data = await res.json();
+            alert('Committed: ' + data.hash.substring(0, 8));
+            renderGitChanges(); // refresh
+          } else {
+            const data = await res.json().catch(() => ({}));
+            alert('Commit failed: ' + (data.error || res.status));
+            $commitBtn.disabled = false;
+            $commitBtn.textContent = 'Commit';
+          }
+        } catch (err) {
+          alert('Commit failed: ' + err.message);
+          $commitBtn.disabled = false;
+          $commitBtn.textContent = 'Commit';
+        }
+      });
+    }
+
+    // Push / Pull
+    const $pushBtn = document.getElementById('btn-push');
+    const $pullBtn = document.getElementById('btn-pull');
+
+    if ($pushBtn) {
+      $pushBtn.addEventListener('click', async () => {
+        const remote = document.getElementById('push-pull-remote').value;
+        const branch = document.getElementById('push-pull-branch').value.trim() || null;
+
+        if (!confirm('Push to ' + remote + (branch ? '/' + branch : '') + '?')) return;
+
+        $pushBtn.disabled = true;
+        $pushBtn.textContent = 'Pushing…';
+
+        try {
+          const res = await authFetch('/api/git/push', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ remote, branch }),
+          });
+
+          const data = await res.json();
+          alert(data.ok ? 'Push successful' : 'Push failed');
+        } catch (err) {
+          alert('Push failed: ' + err.message);
+        }
+
+        $pushBtn.disabled = false;
+        $pushBtn.textContent = 'Push';
+      });
+    }
+
+    if ($pullBtn) {
+      $pullBtn.addEventListener('click', async () => {
+        const remote = document.getElementById('push-pull-remote').value;
+        const branch = document.getElementById('push-pull-branch').value.trim() || null;
+
+        if (!confirm('Pull from ' + remote + (branch ? '/' + branch : '') + '?')) return;
+
+        $pullBtn.disabled = true;
+        $pullBtn.textContent = 'Pulling…';
+
+        try {
+          const res = await authFetch('/api/git/pull', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ remote, branch }),
+          });
+
+          const data = await res.json();
+          alert(data.ok ? 'Pull successful' : 'Pull failed');
+          renderGitChanges(); // refresh after pull
+        } catch (err) {
+          alert('Pull failed: ' + err.message);
+        }
+
+        $pullBtn.disabled = false;
+        $pullBtn.textContent = 'Pull';
+      });
+    }
+
+  } catch (err) {
+    $viewer.innerHTML = '<div class="empty-state"><span>Failed to load changes: ' + esc(err.message) + '</span></div>';
+  }
+}
+
+function wtFileRow(path, type) {
+  const icon = type === 'modified' ? '~' : type === 'deleted' ? '−' : '+';
+  const cls = type === 'modified' ? 'wt-mod' : type === 'deleted' ? 'wt-del' : 'wt-new';
+
+  let html = '<div class="wt-file-row">';
+  html += '<span class="wt-icon ' + cls + '">' + icon + '</span>';
+  html += '<span class="wt-path">' + esc(path) + '</span>';
+  html += '<button class="btn-small wt-stage-btn" data-path="' + esc(path) + '" data-staged="false">Stage</button>';
+  html += '</div>';
+
+  return html;
 }
