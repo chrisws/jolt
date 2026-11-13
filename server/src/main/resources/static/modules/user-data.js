@@ -91,11 +91,8 @@ async function deleteBookmark(bm) {
   const key = bm.path + ':' + bm.line;
   console.log('[BOOKMARKS] removing:', key);
   try {
-    await authFetch('/api/bookmarks', {
-      method: 'DELETE',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ path: bm.path, line: bm.line })
-    });
+    const qs = new URLSearchParams({ path: bm.path, line: String(bm.line) });
+    await authFetch('/api/bookmarks?' + qs.toString(), { method: 'DELETE' });
 
     console.log('[BOOKMARKS] removed:', key);
     showToast('Bookmark removed', 5000, {
