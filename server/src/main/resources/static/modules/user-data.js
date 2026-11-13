@@ -43,6 +43,7 @@ async function loadBookmarks() {
 
     if (!items || items.length === 0) {
       $bookmarks.innerHTML = '<div class="empty-hint">No bookmarks</div>';
+      console.log('[BOOKMARKS] loaded 0 items');
       return;
     }
 
@@ -64,21 +65,31 @@ async function loadBookmarks() {
 
       $bookmarks.appendChild(el);
     }
-  } catch (err) { showToast('Failed to load bookmarks'); }
+    console.log('[BOOKMARKS] loaded ' + items.length + ' items');
+  } catch (err) { console.error('[BOOKMARKS] load failed:', err.message); showToast('Failed to load bookmarks'); }
 }
 
 async function addBookmark(path, line, label) {
+  const key = path + ':' + line;
+  const existing = $bookmarks.querySelectorAll('.bm-path');
+  for (const el of existing) {
+    if (el.textContent === key) { console.log('[BOOKMARKS] duplicate skipped:', key); showToast('Already bookmarked'); return; }
+  }
+
   try {
     await authFetch('/api/bookmarks', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ path, line, label: label || path.split('/').pop() })
     });
+    console.log('[BOOKMARKS] added:', key);
     loadBookmarks();
-  } catch (err) { showToast('Failed to add bookmark'); }
+  } catch (err) { console.error('[BOOKMARKS] add failed:', err.message); showToast('Failed to add bookmark'); }
 }
 
 async function deleteBookmark(bm) {
+  const key = bm.path + ':' + bm.line;
+  console.log('[BOOKMARKS] removing:', key);
   try {
     await authFetch('/api/bookmarks', {
       method: 'DELETE',
@@ -86,14 +97,14 @@ async function deleteBookmark(bm) {
       body: JSON.stringify({ path: bm.path, line: bm.line })
     });
 
-    // Show undo toast for 5 seconds
+    console.log('[BOOKMARKS] removed:', key);
     showToast('Bookmark removed', 5000, {
       label: 'Undo',
       fn: () => { addBookmark(bm.path, bm.line, bm.label); }
     });
 
     loadBookmarks();
-  } catch (err) { showToast('Failed to delete bookmark'); }
+  } catch (err) { console.error('[BOOKMARKS] remove failed:', err.message); showToast('Failed to delete bookmark'); }
 }
 
 // ── Recent Files ───────────────────────────────────────────

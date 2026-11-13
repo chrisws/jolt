@@ -61,6 +61,8 @@ public class BookmarksService {
     bookmarks.add(bm);
     savePrefs(root);
 
+    log.info("[BOOKMARKS] Added: {}:{}", path, line);
+
     return Map.of(
         "path", path, "line", line, "label", label != null ? label : "",
         "createdAt", Instant.now().toString()
@@ -78,9 +80,12 @@ public class BookmarksService {
       if (bm.path("path").asText().equals(path) && bm.path("line").asInt() == line) {
         it.remove();
         savePrefs(root);
+        log.info("[BOOKMARKS] Removed: {}:{}", path, line);
         return true;
       }
     }
+
+    log.warn("[BOOKMARKS] Remove failed - not found: {}:{}", path, line);
     return false;
   }
 
@@ -133,6 +138,7 @@ public class BookmarksService {
     }
 
     savePrefs(root);
+    log.debug("[RECENT] Recorded: {}", path);
   }
 
   /** Get recent files. */

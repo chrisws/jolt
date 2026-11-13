@@ -68,10 +68,9 @@ export function renderTabs() {
     el.setAttribute('role', 'tab');
     el.setAttribute('aria-selected', isActive ? 'true' : 'false');
     el.setAttribute('tabindex', isActive ? '0' : '-1');
-    el.innerHTML = '<span>' + esc(tab.name) + '</span><span class="bm-btn" title="Bookmark">&#x1F516;</span><span class="close-btn" title="Close">&times;</span>';
+    el.innerHTML = '<span>' + esc(tab.name) + '</span><span class="close-btn" title="Close">&times;</span>';
     el.addEventListener('click', e => {
       if (e.target.classList.contains('close-btn')) closeTab(tab.id);
-      else if (e.target.classList.contains('bm-btn')) { if (window._joltAddBookmark) window._joltAddBookmark(tab.path, 1, tab.name); }
       else activateTab(tab.id);
     });
     el.addEventListener('auxclick', e => { if (e.button === 1) closeTab(tab.id); });

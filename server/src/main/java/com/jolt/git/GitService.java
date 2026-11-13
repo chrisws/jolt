@@ -765,8 +765,10 @@ public class GitService {
           result.add(entry);
         }
       }
+
+      log.debug("[GIT] Status: {} changes{}", result.size(), includeUntracked ? " (incl. untracked)" : "");
     } catch (Exception e) {
-      log.warn("Git status failed: {}", e.getMessage());
+      log.warn("[GIT] Status failed: {}", e.getMessage());
     }
     return result;
   }
@@ -775,9 +777,10 @@ public class GitService {
   public boolean stageFile(String path) {
     try (Git git = Git.open(homeDir.toFile())) {
       git.add().addFilepattern(path).call();
+      log.info("[GIT] Staged: {}", path);
       return true;
     } catch (Exception e) {
-      log.error("Failed to stage file {}: {}", path, e.getMessage());
+      log.error("[GIT] Failed to stage {}: {}", path, e.getMessage());
       return false;
     }
   }
@@ -898,9 +901,10 @@ public class GitService {
   public boolean stageAll() {
     try (Git git = Git.open(homeDir.toFile())) {
       git.add().addFilepattern(".").call();
+      log.info("[GIT] Staged all files");
       return true;
     } catch (Exception e) {
-      log.error("Failed to stage all files: {}", e.getMessage());
+      log.error("[GIT] Failed to stage all: {}", e.getMessage());
       return false;
     }
   }

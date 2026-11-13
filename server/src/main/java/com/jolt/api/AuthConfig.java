@@ -68,14 +68,8 @@ public final class AuthConfig {
       if (path.startsWith("/api/") || path.startsWith("/ws")) {
         var cookie = ctx.cookie(AuthService.COOKIE_NAME);
         if (cookie == null || !authRef.isValidSession(cookie)) {
-          log.info("[AUTH] 401 for {} — cookie={}", path, cookie);
-          if (path.startsWith("/api/")) {
-            ctx.status(401).json(Map.of("error", "unauthorized"));
-          } else {
-            ctx.status(401);
-          }
-          ctx.result("");
-          return;
+          log.warn("[AUTH] 401 [tid-{}] {} — cookie={}", Thread.currentThread().getId(), path, cookie);
+          throw new UnauthorizedException("unauthorized: " + path);
         }
 
         // CSRF check on state-changing methods
@@ -83,32 +77,40 @@ public final class AuthConfig {
         if (method == io.javalin.http.HandlerType.POST || method == io.javalin.http.HandlerType.PUT
             || method == io.javalin.http.HandlerType.DELETE || method == io.javalin.http.HandlerType.PATCH) {
           if (!"true".equals(ctx.header("X-Jolt-Request"))) {
+            log.warn("[AUTH] 403 CSRF [tid-{}] {} — missing X-Jolt-Request header", Thread.currentThread().getId(), path);
             ctx.status(403).json(Map.of("error", "csrf rejected"));
-            ctx.result("");
-            return;
+            throw new UnauthorizedException("csrf rejected: " + path);
           }
         }
       }
     });
 
+
+    // ── Error handler: catches UnauthorizedException from before-filter ──
+    app.unsafe.routes.exception(UnauthorizedException.class, (ex, ctx) -> {
+      int status = ex.getMessage() != null && ex.getMessage().startsWith("csrf") ? 403 : 401;
+      ctx.status(status).json(Map.of("error", "unauthorized"));
+    });
+
     // ── Login endpoint ──
     app.unsafe.routes.post("/api/auth/login", ctx -> {
+      long tid = Thread.currentThread().getId();
       String loginToken = ctx.queryParam("token");
-      log.info("[AUTH] Login attempt — queryParam token={}", loginToken);
+      log.info("[AUTH] [tid-{}] Login attempt — queryParam token={}", tid, loginToken);
 
       if (loginToken == null || loginToken.isBlank()) {
         try {
           var body = ctx.bodyAsClass(Map.class);
-          log.info("[AUTH] Body parsed: {}", body);
+          log.info("[AUTH] [tid-{}] Body parsed: {}", tid, body);
           if (body != null) loginToken = (String) body.get("token");
         } catch (Exception e) {
-          log.warn("[AUTH] Failed to parse body: {}", e.getMessage());
+          log.warn("[AUTH] [tid-{}] Failed to parse body: {}", tid, e.getMessage());
         }
       }
-      log.info("[AUTH] Final token value={}", loginToken);
+      log.info("[AUTH] [tid-{}] Final token value={}", tid, loginToken);
 
       String sessionValue = authRef.exchangeToken(loginToken);
-      log.info("[AUTH] exchangeToken result={}", sessionValue != null ? "OK" : "null (rejected)");
+      log.info("[AUTH] [tid-{}] exchangeToken result={}", tid, sessionValue != null ? "OK" : "null (rejected)");
 
       if (sessionValue == null) {
         ctx.status(401).json(Map.of("error", "invalid token"));
@@ -116,6 +118,7 @@ public final class AuthConfig {
       }
 
       ctx.header("Set-Cookie", AuthService.COOKIE_NAME + "=" + sessionValue + "; Path=/; HttpOnly; SameSite=Strict");
+      log.info("[AUTH] [tid-{}] Cookie set: {}={} (Path=/, HttpOnly, SameSite=Strict)", tid, AuthService.COOKIE_NAME, sessionValue.substring(0, 8) + "…");
       ctx.json(Map.of("ok", true));
     });
 

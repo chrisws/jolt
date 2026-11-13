@@ -305,15 +305,6 @@ grid-template-columns: var(--sidebar-width, 260px) 5px 1fr;
 
 .tab .close-btn:hover { background: var(--border); }
 
-.tab .bm-btn {
-  width: 16px; height: 16px;
-  display: flex; align-items: center; justify-content: center;
-  border-radius: 3px;
-  font-size: 11px; line-height: 1;
-}
-
-.tab .bm-btn:hover { background: var(--border); }
-
 .tab-home-btn {
   margin-left: auto;
   padding: var(--sp-1) var(--sp-2);
@@ -892,6 +883,9 @@ kbd {
 .sidebar-section {
   padding: var(--sp-2) 0;
   border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 .sidebar-section > :not(.section-label) {
@@ -1553,12 +1547,16 @@ h1.logo a { text-decoration: none; color: inherit; }
   font-size: var(--fs-base);
   box-shadow: 0 4px 12px rgba(0,0,0,0.4);
   z-index: 9999;
-  opacity: 1;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  opacity: 0;
+  pointer-events: none;
   transition: opacity 0.3s, transform 0.3s;
 }
-.jolt-toast.hide {
-  opacity: 0;
-  transform: translateX(-50%) translateY(var(--sp-2));
+.jolt-toast.visible {
+  opacity: 1;
+  pointer-events: auto;
 }
 
 /* ── Loading state ───────────────────────────────── */

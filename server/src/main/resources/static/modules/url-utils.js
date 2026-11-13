@@ -46,7 +46,15 @@ export function authFetch(url, options = {}) {
     options.headers = { 'X-Jolt-Request': 'true', ...(options.headers || {}) };
   }
   return fetch(url, options).then(res => {
-    if (res.status === 401) { window.location.href = '/login.html'; throw new Error('unauthorized'); }
+    if (res.status === 401) {
+      // Retry once after a short delay (handles cookie registration race)
+      return new Promise(resolve => setTimeout(resolve, 150)).then(() => {
+        return fetch(url, options).then(res2 => {
+          if (res2.status === 401) { window.location.href = '/login.html'; throw new Error('unauthorized'); }
+          return res2;
+        });
+      });
+    }
     return res;
   });
 }

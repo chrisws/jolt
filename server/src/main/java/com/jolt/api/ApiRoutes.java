@@ -653,20 +653,26 @@ String branch = ctx.body();
         Map<String, Object> bm = bookmarksSvc.addBookmark(path, line, label);
         ctx.status(201).json(bm);
       } catch (Exception e) {
+        log.error("[BOOKMARKS] POST failed: {}", e.getMessage(), e);
         ctx.status(500).json(Map.of("error", e.getMessage()));
       }
     });
 
     routes.delete("/api/bookmarks", ctx -> {
-      String path = ctx.queryParam("path");
-      int line = 0;
-      try { line = Integer.parseInt(ctx.queryParam("line")); } catch (Exception ignored) {}
+      try {
+        String path = ctx.queryParam("path");
+        int line = 0;
+        try { line = Integer.parseInt(ctx.queryParam("line")); } catch (Exception ignored) {}
 
-      if (path == null) { ctx.status(400).result("Missing 'path'"); return; }
+        if (path == null) { ctx.status(400).result("Missing 'path'"); return; }
 
-      boolean removed = bookmarksSvc.removeBookmark(path, line);
-      if (removed) { ctx.json(Map.of("ok", true)); }
-      else { ctx.status(404).json(Map.of("ok", false)); }
+        boolean removed = bookmarksSvc.removeBookmark(path, line);
+        if (removed) { ctx.json(Map.of("ok", true)); }
+        else { ctx.status(404).json(Map.of("ok", false)); }
+      } catch (Exception e) {
+        log.error("[BOOKMARKS] DELETE failed: {}", e.getMessage(), e);
+        ctx.status(500).json(Map.of("error", e.getMessage()));
+      }
     });
 
     // --- Recent Files ---

@@ -12,9 +12,30 @@ import { initBranchSelector } from './modules/branch-selector.js';
 import { initNavHistory } from './modules/nav-history.js';
 import { initDivider } from './modules/divider.js';
 import { initContextMenu } from './modules/context-menu.js';
+import { initSidebar } from './modules/sidebar.js';
 
 // ── Auth gate ──────────────────────────────────────────────
 async function checkAuth() {
+  // Auto-exchange token from URL query param (e.g. ?token=abc123)
+  const params = new URLSearchParams(window.location.search);
+  const urlToken = params.get('token');
+  if (urlToken) {
+    try {
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: urlToken })
+      });
+      if (res.ok) {
+        console.log('[AUTH] Token exchanged from URL');
+        // Clean the token from the URL so it's not in history/referrer
+        history.replaceState({}, '', window.location.pathname + window.location.hash);
+      } else {
+        console.warn('[AUTH] Token exchange failed:', res.status);
+      }
+    } catch (err) { console.error('[AUTH] Token exchange error:', err.message); }
+  }
+
   try {
     const res = await fetch('/api/settings');
     if (res.status === 401) {
@@ -28,6 +49,8 @@ async function checkAuth() {
 if (!(await checkAuth())) {
   throw new Error('Auth required — redirecting to login');
 }
+
+initSidebar();
 
 // ── Parallel startup ──────────────────────────────────────
 
@@ -70,6 +93,13 @@ window._openQuickOpen = openQuickOpen;
 
 // Copy Link button
 document.getElementById('copy-link-btn').addEventListener('click', copyShareableLink);
+
+// Bookmark button
+document.getElementById('bookmark-btn').addEventListener('click', async () => {
+  const { state } = await import('./modules/tabs.js');
+  if (!state.activeTab) return;
+  if (window._joltAddBookmark) window._joltAddBookmark(state.activeTab.path, 1, state.activeTab.name);
+});
 
 // Theme toggle
 const themeBtn = document.getElementById('theme-toggle');

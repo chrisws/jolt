@@ -26,7 +26,7 @@ async function loadBranches() {
   const $sel = document.getElementById('branch-select');
   if (!$sel) return;
   try {
-    const res = await fetch('/api/git/branches');
+    const res = await authFetch('/api/git/branches');
     const branches = await res.json();
     $sel.innerHTML = '';
     for (const b of branches) {
@@ -49,7 +49,7 @@ export async function renderGitStats() {
   $viewer.innerHTML = '<div class="loading">Loading stats…</div>';
 
   try {
-    const res = await fetch('/api/git/stats');
+    const res = await authFetch('/api/git/stats');
     const s = await res.json();
 
     let html = '<div class="git-page">';
@@ -102,7 +102,7 @@ export async function renderCommitList(params) {
     const qs = new URLSearchParams({ page: page, size: 25 });
     if (branch) qs.set('branch', branch);
 
-    const res = await fetch('/api/git/commits?' + qs.toString());
+    const res = await authFetch('/api/git/commits?' + qs.toString());
     const data = await res.json();
 
     let html = '<div class="git-page">';
@@ -153,7 +153,7 @@ export async function renderCommitList(params) {
       if (from) qs.set('from', from + 'T00:00:00Z');
       if (to) qs.set('to', to + 'T23:59:59Z');
 
-      fetch('/api/git/commits?' + qs.toString()).then(r => r.json()).then(d => {
+      authFetch('/api/git/commits?' + qs.toString()).then(r => r.json()).then(d => {
         renderCommitListFiltered(d);
       });
     });
@@ -192,7 +192,7 @@ export async function renderCommitDetail(hash) {
   $viewer.innerHTML = '<div class="loading">Loading commit…</div>';
 
   try {
-    const res = await fetch('/api/git/commit/enhanced?hash=' + encodeURIComponent(hash));
+    const res = await authFetch('/api/git/commit/enhanced?hash=' + encodeURIComponent(hash));
     if (!res.ok) throw new Error('HTTP ' + res.status);
     const d = await res.json();
 
@@ -279,12 +279,12 @@ async function loadFileDiff(commitHash, filePath, idx) {
 
   try {
     if (view === 'raw') {
-      const res = await fetch('/api/git/commit/raw?hash=' + encodeURIComponent(commitHash) + '&path=' + encodeURIComponent(filePath));
+      const res = await authFetch('/api/git/commit/raw?hash=' + encodeURIComponent(commitHash) + '&path=' + encodeURIComponent(filePath));
       if (!res.ok) throw new Error('HTTP ' + res.status);
       const text = await res.text();
       renderRawView(diffArea, filePath, text);
     } else {
-      const res = await fetch('/api/git/file-diff?to=' + encodeURIComponent(commitHash) + '&path=' + encodeURIComponent(filePath));
+      const res = await authFetch('/api/git/file-diff?to=' + encodeURIComponent(commitHash) + '&path=' + encodeURIComponent(filePath));
       if (!res.ok) throw new Error('HTTP ' + res.status);
       const data = await res.json();
 
@@ -383,7 +383,7 @@ export async function renderHeatmap(year) {
   if (!container) return;
 
   try {
-    const res = await fetch('/api/git/activity?year=' + year);
+    const res = await authFetch('/api/git/activity?year=' + year);
     const data = await res.json();
     const cells = data.cells || [];
 
@@ -431,7 +431,7 @@ export async function renderHeatmap(year) {
         const date = el.dataset.date;
         location.hash = '#/git/commits/0';
         setTimeout(() => {
-          fetch('/api/git/commits?page=0&size=25&from=' + date + 'T00:00:00Z&to=' + date + 'T23:59:59Z')
+          authFetch('/api/git/commits?page=0&size=25&from=' + date + 'T00:00:00Z&to=' + date + 'T23:59:59Z')
             .then(r => r.json())
             .then(d => renderCommitListFiltered(d));
         }, 100);
@@ -447,10 +447,10 @@ export async function renderGitChanges() {
   $viewer.innerHTML = '<div class="loading">Loading working tree…</div>';
 
   try {
-    const res = await fetch('/api/git/status?untracked=true');
+    const res = await authFetch('/api/git/status?untracked=true');
     const files = await res.json();
 
-    const remotesRes = await fetch('/api/git/remotes');
+    const remotesRes = await authFetch('/api/git/remotes');
     const remotes = await remotesRes.json();
 
     let html = '<div class="git-page">';
