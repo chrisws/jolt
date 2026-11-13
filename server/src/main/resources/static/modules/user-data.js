@@ -4,6 +4,33 @@ const $feedbackModal = document.getElementById('feedback-modal');
 
 function esc(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
 
+// ── Toast notification helper ──────────────────────────────
+function showToast(msg, duration = 4000, action) {
+  let toast = document.getElementById('jolt-toast');
+  if (!toast) {
+    toast = document.createElement('div');
+    toast.id = 'jolt-toast';
+    toast.className = 'jolt-toast';
+    document.body.appendChild(toast);
+  }
+  toast.innerHTML = '<span>' + esc(msg) + '</span>';
+  if (action) {
+    const btn = document.createElement('button');
+    btn.className = 'toast-action';
+    btn.textContent = action.label;
+    btn.addEventListener('click', () => { action.fn(); hideToast(); });
+    toast.appendChild(btn);
+  }
+  toast.classList.add('visible');
+  clearTimeout(toast._timer);
+  toast._timer = setTimeout(hideToast, duration);
+}
+
+function hideToast() {
+  const toast = document.getElementById('jolt-toast');
+  if (toast) toast.classList.remove('visible');
+}
+
 // ── Bookmarks ──────────────────────────────────────────────
 
 async function loadBookmarks() {
@@ -35,7 +62,7 @@ async function loadBookmarks() {
 
       $bookmarks.appendChild(el);
     }
-  } catch (err) { console.error('Bookmarks load failed:', err); }
+  } catch (err) { showToast('Failed to load bookmarks'); }
 }
 
 async function addBookmark(path, line, label) {
@@ -46,7 +73,7 @@ async function addBookmark(path, line, label) {
       body: JSON.stringify({ path, line, label: label || path.split('/').pop() })
     });
     loadBookmarks();
-  } catch (err) { console.error('Bookmark add failed:', err); }
+  } catch (err) { showToast('Failed to add bookmark'); }
 }
 
 async function deleteBookmark(bm) {
@@ -56,8 +83,15 @@ async function deleteBookmark(bm) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ path: bm.path, line: bm.line })
     });
+
+    // Show undo toast for 5 seconds
+    showToast('Bookmark removed', 5000, {
+      label: 'Undo',
+      fn: () => { addBookmark(bm.path, bm.line, bm.label); }
+    });
+
     loadBookmarks();
-  } catch (err) { console.error('Bookmark delete failed:', err); }
+  } catch (err) { showToast('Failed to delete bookmark'); }
 }
 
 // ── Recent Files ───────────────────────────────────────────
@@ -86,7 +120,7 @@ async function loadRecent() {
 
       $recent.appendChild(el);
     }
-  } catch (err) { console.error('Recent load failed:', err); }
+  } catch (err) { showToast('Failed to load recent files'); }
 }
 
 // ── Search History ─────────────────────────────────────────
@@ -120,7 +154,7 @@ async function loadSearchHistory() {
     }
 
     document.getElementById('search-history').classList.add('open');
-  } catch (err) { console.error('Search history failed:', err); }
+  } catch (err) { showToast('Failed to load search history'); }
 }
 
 function closeSearchHistory() {
@@ -186,7 +220,7 @@ async function submitFeedback(e) {
       $status.textContent = 'Thanks! Feedback submitted.';
       setTimeout(() => { if ($status) $status.textContent = ''; }, 3000);
     }
-  } catch (err) { console.error('Feedback submit failed:', err); }
+  } catch (err) { showToast('Failed to submit feedback'); }
 }
 
 // ── Git Changes Section ────────────────────────────────────
@@ -318,9 +352,9 @@ export function initUserData() {
     });
   }
 
-  // Feedback button in topbar
+  // Feedback button in settings panel
   const $fbBtn = document.getElementById('feedback-btn');
-  if ($fbBtn) $fbBtn.addEventListener('click', openFeedback);
+  if ($fbBtn) $fbBtn.addEventListener('click', () => openFeedback());
 
   // Feedback modal close + submit
   const $fbClose = document.getElementById('feedback-close');

@@ -12,6 +12,7 @@ let suggestActive   = -1;   // index of highlighted item (-1 = none)
 let semanticMode    = false; // true → use /api/search/semantic
 let caseSensitive   = false; // true → case-sensitive matching
 let wholeWord       = false; // true → whole-word matching
+let abortController = null;  // cancel in-flight searches
 
 function esc(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
 
@@ -19,15 +20,23 @@ import { buildSearchUrl } from './url-utils.js';
 
 async function doSearch(query) {
   if (!query || query.length < 2) return;
+
+  // Cancel any in-flight search
+  if (abortController) abortController.abort();
+  abortController = new AbortController();
+
+  // Show searching indicator
+  $searchRes.innerHTML = '<div class="empty-state"><span>Searching…</span></div>';
+  $searchPanel.classList.add('open');
+
   try {
     const url = buildSearchUrl(query, { semantic: semanticMode, caseSensitive, wholeWord });
-    const res = await fetch(url);
+    const res = await fetch(url, { signal: abortController.signal });
 
     // Graceful 503 fallback — embedding model not loaded
     if (semanticMode && res.status === 503) {
       const errBody = await res.json().catch(() => ({}));
       $searchRes.innerHTML = '<div class="empty-state"><span>Semantic search unavailable — ' + esc(errBody.hint || 'embedding model not loaded') + '</span></div>';
-      $searchPanel.classList.add('open');
       setTimeout(() => { semanticMode = false; $semanticToggle.classList.remove('active'); doSearch(query); }, 1500);
       return;
     }
@@ -44,8 +53,10 @@ async function doSearch(query) {
     }
 
     if (results.length === 0) $searchRes.innerHTML = '<div class="empty-state"><span>No results</span></div>';
-    $searchPanel.classList.add('open');
-  } catch (err) { console.error('Search failed:', err); }
+  } catch (err) {
+    if (err.name === 'AbortError') return; // cancelled, ignore
+    $searchRes.innerHTML = '<div class="empty-state search-error"><span>Search failed: ' + esc(err.message) + '</span></div>';
+  }
 }
 
 export function closeSearch() { $searchPanel.classList.remove('open'); }

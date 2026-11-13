@@ -1,3 +1,5 @@
+import './focus-manager.js'; // Coordinated Escape + focus management (side-effect import)
+
 /* ── Keybinding Engine ─────────────────────────────── */
 
 const actions = {};

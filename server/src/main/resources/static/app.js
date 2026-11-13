@@ -13,23 +13,31 @@ import { initNavHistory } from './modules/nav-history.js';
 import { initDivider } from './modules/divider.js';
 import { initContextMenu } from './modules/context-menu.js';
 
-// Apply theme from settings
-(async () => {
+// ── Parallel startup ──────────────────────────────────────
+
+async function loadTheme() {
   try {
     const res = await fetch('/api/settings');
     const settings = await res.json();
     const theme = settings.theme || 'dark';
     document.documentElement.dataset.theme = theme;
-  } catch { /* default to dark */ }
-})();
+  } catch {
+    // One-time notification for settings load failure
+    const toast = document.createElement('div');
+    toast.className = 'jolt-toast visible';
+    toast.id = 'jolt-toast';
+    toast.textContent = 'Settings unavailable — using defaults';
+    document.body.appendChild(toast);
+    setTimeout(() => toast.remove(), 5000);
+  }
+}
 
-// Startup: wire up all subsystems
+// Synchronous init (event wiring) — safe to run in sequence
 initSearch();
 initSettings();
 initKeybindings();
 initInspector();
 initRouter();
-loadFileTree();
 initUserData();
 initFileViewer();
 initBranchSelector();
@@ -37,6 +45,9 @@ initQuickOpen();
 initDivider();
 initContextMenu();
 initNavHistory();
+
+// Async init — run in parallel with theme loading
+Promise.all([loadTheme(), loadFileTree()]);
 
 // Expose for keybindings module
 window._openQuickOpen = openQuickOpen;

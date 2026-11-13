@@ -11,6 +11,39 @@ let qoOpen        = false;
 
 function esc(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
 
+let _focusTrapHandler = null;
+
+function setupFocusTrap() {
+  _focusTrapHandler = e => {
+    if (e.key !== 'Tab') return;
+    const dialog = $qoBackdrop.querySelector('.qo-dialog');
+    const focusable = dialog.querySelectorAll('input, button, [tabindex]:not([tabindex="-1"])');
+    if (focusable.length === 0) return;
+
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+
+    if (e.shiftKey && document.activeElement === first) {
+      e.preventDefault();
+      last.focus();
+    } else if (!e.shiftKey && document.activeElement === last) {
+      e.preventDefault();
+      first.focus();
+    } else if (!dialog.contains(document.activeElement)) {
+      e.preventDefault();
+      first.focus();
+    }
+  };
+  document.addEventListener('keydown', _focusTrapHandler);
+}
+
+function teardownFocusTrap() {
+  if (_focusTrapHandler) {
+    document.removeEventListener('keydown', _focusTrapHandler);
+    _focusTrapHandler = null;
+  }
+}
+
 export function openQuickOpen() {
   qoOpen = true;
   qoItems = [];
@@ -18,12 +51,14 @@ export function openQuickOpen() {
   $qoInput.value = '';
   $qoList.innerHTML = '';
   $qoBackdrop.classList.add('open');
+  setupFocusTrap();
   $qoInput.focus();
 }
 
 export function closeQuickOpen() {
   qoOpen = false;
   $qoBackdrop.classList.remove('open');
+  teardownFocusTrap();
 }
 
 /* ── Recent Files (Ctrl+E) ─────────────────────────── */

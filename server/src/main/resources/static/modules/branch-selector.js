@@ -5,8 +5,42 @@ const $dropdown = document.getElementById('branch-dropdown');
 export function initBranchSelector() {
   loadBranches();
   $selector.addEventListener('click', toggleDropdown);
+
+  // Keyboard: Enter/Space to open, Escape to close, ArrowUp/Down + Enter to select
+  $selector.addEventListener('keydown', e => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      toggleDropdown();
+    } else if (e.key === 'Escape') {
+      closeDropdown();
+    } else if ($dropdown.classList.contains('open')) {
+      const items = Array.from($dropdown.querySelectorAll('.branch-dropdown-item'));
+      const activeIdx = items.findIndex(i => i.classList.contains('focused'));
+
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        const next = activeIdx < items.length - 1 ? activeIdx + 1 : 0;
+        items.forEach((i, idx) => i.classList.toggle('focused', idx === next));
+        items[next].scrollIntoView({ block: 'nearest' });
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        const prev = activeIdx > 0 ? activeIdx - 1 : items.length - 1;
+        items.forEach((i, idx) => i.classList.toggle('focused', idx === prev));
+        items[prev].scrollIntoView({ block: 'nearest' });
+      } else if (e.key === 'Enter' && activeIdx >= 0) {
+        e.preventDefault();
+        items[activeIdx].click();
+      }
+    }
+  });
+
   document.addEventListener('click', (e) => {
     if (!$selector.contains(e.target)) closeDropdown();
+  });
+
+  // Global Escape to close dropdown
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && $dropdown.classList.contains('open')) closeDropdown();
   });
 }
 
@@ -36,11 +70,13 @@ async function loadBranches() {
 }
 
 function toggleDropdown() {
-  $dropdown.classList.toggle('open');
+  const isOpen = $dropdown.classList.toggle('open');
+  $selector.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
 }
 
 function closeDropdown() {
   $dropdown.classList.remove('open');
+  $selector.setAttribute('aria-expanded', 'false');
 }
 
 async function checkoutBranch(name) {

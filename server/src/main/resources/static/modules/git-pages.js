@@ -8,6 +8,7 @@ function fmtDate(isoStr) {
   if (!isoStr) return '—';
   try {
     const d = new Date(isoStr);
+    if (isNaN(d.getTime())) return '—';
     return d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
   } catch (_) { return isoStr; }
 }

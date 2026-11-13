@@ -6,6 +6,9 @@ function esc(s) { const d = document.createElement('div'); d.textContent = s; re
 let _mdMode = 'rendered'; // 'raw' | 'rendered'
 
 export async function loadFile(path) {
+  // Show loading state
+  $viewer.innerHTML = '<div class="loading-state"><span class="loading-spinner"></span> Loading…</div>';
+
   try {
     const res = await fetch('/api/file?path=' + encodeURIComponent(path));
     if (!res.ok) throw new Error('HTTP ' + res.status);
@@ -72,22 +75,47 @@ function hideMdToggle() {
   if (btn) btn.style.display = 'none';
 }
 
+const MAX_RENDER_LINES = 2000;
+
 export function renderCode(content, language) {
   const lines = content.split('\n');
+  const isLarge = lines.length > MAX_RENDER_LINES;
+  const renderCount = isLarge ? MAX_RENDER_LINES : lines.length;
+
   let html = '';
-  for (let i = 0; i < lines.length; i++) {
+  for (let i = 0; i < renderCount; i++) {
     html += '<div class="code-line" data-line="' + (i + 1) + '">';
     html += '<span class="line-num">' + (i + 1) + '</span>';
     html += '<span class="line-content">' + esc(lines[i]) + '</span>';
     html += '</div>';
   }
+
+  if (isLarge) {
+    html += '<div class="code-line load-more-line"><button class="load-full-btn">Load full file (' + lines.length.toLocaleString() + ' lines)</button></div>';
+  }
+
   $viewer.innerHTML = html;
 
-  if (language && hljs.getLanguage(language)) {
-    $viewer.querySelectorAll('.line-content').forEach((el, i) => {
-      try { el.innerHTML = hljs.highlight(lines[i], { language }).value; } catch (_) {}
-    });
+  // Wire up "Load full file" button if present
+  const loadBtn = $viewer.querySelector('.load-full-btn');
+  if (loadBtn) {
+    loadBtn.addEventListener('click', () => { renderCode(content, language); });
   }
+
+  // Defer syntax highlighting to idle time for large files
+  if (language && hljs.getLanguage(language)) {
+    const doHighlight = () => {
+      $viewer.querySelectorAll('.line-content').forEach((el, i) => {
+        try { el.innerHTML = hljs.highlight(lines[i], { language }).value; } catch (_) {}
+      });
+    };
+    if (typeof requestIdleCallback === 'function') {
+      requestIdleCallback(doHighlight, { timeout: 2000 });
+    } else {
+      setTimeout(doHighlight, 100);
+    }
+  }
+
   $viewer.scrollTop = 0;
 }
 

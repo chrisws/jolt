@@ -16,10 +16,20 @@ function toggleArrow(expanded) {
   return '<span class="tree-toggle' + (expanded ? ' expanded' : '') + '">&#x25B6;</span>';
 }
 
+// Cache for directory listings to avoid re-fetching
+const dirCache = new Map();
+
 async function loadDir(dirPath, target, depth) {
   try {
-    const res = await fetch('/api/file/tree?path=' + encodeURIComponent(dirPath));
-    const entries = await res.json();
+    let entries;
+    if (dirCache.has(dirPath)) {
+      entries = dirCache.get(dirPath);
+    } else {
+      const res = await fetch('/api/file/tree?path=' + encodeURIComponent(dirPath));
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      entries = await res.json();
+      dirCache.set(dirPath, entries);
+    }
 
     for (const e of entries) {
       const el = document.createElement('div');
@@ -27,6 +37,9 @@ async function loadDir(dirPath, target, depth) {
       el.style.paddingLeft = (8 + depth * 16) + 'px';
 
       if (e.type === 'directory') {
+        el.setAttribute('role', 'treeitem');
+        el.setAttribute('aria-expanded', 'false');
+        el.setAttribute('tabindex', '-1');
         el.innerHTML = toggleArrow(false) + '<span class="icon">' + dirIcon() + '</span><span class="tree-label">' + esc(e.name) + '</span>';
         el.dataset.path = e.path;
 
@@ -49,6 +62,7 @@ async function loadDir(dirPath, target, depth) {
           }
 
           childContainer.style.display = isExpanded ? 'none' : 'block';
+          el.setAttribute('aria-expanded', !isExpanded ? 'true' : 'false');
           const arrow = el.querySelector('.tree-toggle');
           if (arrow) { arrow.classList.toggle('expanded', !isExpanded); }
         });
@@ -57,6 +71,8 @@ async function loadDir(dirPath, target, depth) {
         target.appendChild(childContainer);
 
       } else {
+        el.setAttribute('role', 'treeitem');
+        el.setAttribute('tabindex', '-1');
         const ext = e.name.split('.').pop();
         el.innerHTML = '<span class="tree-toggle-spacer"></span><span class="icon">' + fileIcon(ext) + '</span><span class="tree-label">' + esc(e.name) + '</span>';
         el.dataset.path = e.path;
@@ -70,7 +86,16 @@ async function loadDir(dirPath, target, depth) {
         target.appendChild(el);
       }
     }
-  } catch (err) { console.error('Dir load failed:', err); }
+  } catch (err) {
+    const errEl = document.createElement('div');
+    errEl.className = 'tree-item tree-error';
+    errEl.style.paddingLeft = (8 + depth * 16) + 'px';
+    errEl.setAttribute('role', 'treeitem');
+    errEl.setAttribute('tabindex', '0');
+    errEl.textContent = 'Failed to load — click to retry';
+    errEl.addEventListener('click', () => { dirCache.delete(dirPath); loadDir(dirPath, target, depth); });
+    target.appendChild(errEl);
+  }
 }
 
 // ── Collapse / Expand All ──────────────────────────
@@ -140,3 +165,59 @@ async function markDirtyFiles() {
     });
   } catch (_) { /* not a git repo or API unavailable */ }
 }
+
+// ── Keyboard navigation for tree ──────────────────
+$fileTree.addEventListener('keydown', e => {
+  const items = Array.from($fileTree.querySelectorAll('.tree-item[role="treeitem"]'));
+  const idx = items.findIndex(el => el.getAttribute('tabindex') === '0');
+  if (idx === -1) return;
+
+  let next = -1;
+  switch (e.key) {
+    case 'ArrowDown': next = Math.min(idx + 1, items.length - 1); break;
+    case 'ArrowUp':   next = Math.max(idx - 1, 0); break;
+    case 'ArrowRight': {
+      const item = items[idx];
+      if (item.getAttribute('aria-expanded') === 'false') {
+        item.click(); // expand
+      } else {
+        // Move to first child
+        const children = item.nextElementSibling;
+        if (children && children.classList.contains('tree-children')) {
+          const firstChild = children.querySelector('.tree-item[role="treeitem"]');
+          if (firstChild) next = items.indexOf(firstChild);
+        }
+      }
+      break;
+    }
+    case 'ArrowLeft': {
+      const item = items[idx];
+      if (item.getAttribute('aria-expanded') === 'true') {
+        item.click(); // collapse
+      } else {
+        // Move to parent (find the enclosing tree-children)
+        let parent = item.parentElement;
+        while (parent && parent !== $fileTree) {
+          if (parent.classList.contains('tree-children')) {
+            const prevItem = parent.previousElementSibling;
+            if (prevItem && prevItem.classList.contains('tree-item')) { next = items.indexOf(prevItem); break; }
+          }
+          parent = parent.parentElement;
+        }
+      }
+      break;
+    }
+    case 'Enter': case ' ': items[idx].click(); e.preventDefault(); return;
+    default: return;
+  }
+
+  if (next !== -1) {
+    e.preventDefault();
+    items[idx].setAttribute('tabindex', '-1');
+    items[next].setAttribute('tabindex', '0');
+    items[next].focus();
+  } else if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
+    e.preventDefault(); // consumed even if no navigation target
+  }
+});
+

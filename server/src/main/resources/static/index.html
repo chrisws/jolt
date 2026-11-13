@@ -10,12 +10,13 @@
   <script src="hljs/marked.umd.min.js"></script>
 </head>
 <body>
+  <a class="skip-link" href="#main-content">Skip to main content</a>
   <div class="app">
 
     <!-- Top bar -->
     <header class="topbar">
-      <a class="logo" href="/">Jolt</a>
-      <div class="branch-selector" id="branch-selector" title="Current branch — click to switch">
+      <h1 class="logo"><a href="/">Jolt</a></h1>
+      <div class="branch-selector" id="branch-selector" role="button" tabindex="0" aria-expanded="false" title="Current branch — click to switch">
         <span class="branch-icon">&#x2387;</span>
         <span class="branch-name" id="branch-name">…</span>
         <div class="branch-dropdown" id="branch-dropdown" role="listbox"></div>
@@ -27,7 +28,6 @@
         <button class="semantic-toggle" id="semantic-toggle" title="Toggle semantic search" aria-label="Toggle semantic search">&#x2728;</button>
         <div class="suggest-dropdown" id="suggest-dropdown" role="listbox"></div>
       </div>
-      <button class="feedback-btn" id="feedback-btn" title="Report issue" aria-label="Report issue">&#x1F41B;</button>
       <button class="theme-toggle" id="theme-toggle" title="Toggle light/dark theme" aria-label="Toggle theme">&#x263D;</button>
       <button class="settings-btn" id="settings-btn" title="Settings" aria-label="Settings">&#x2699;</button>
     </header>
@@ -36,33 +36,33 @@
     <div class="sidebar-container">
 
       <!-- File tree -->
-      <nav class="sidebar" id="file-tree" aria-label="File tree">
-        <div class="section-label">Project</div>
+      <nav class="sidebar" id="file-tree" role="tree" aria-label="File tree">
+        <div class="section-label" role="button" tabindex="0" aria-expanded="true" aria-controls="file-tree-content">Project</div>
         <!-- populated by app.js -->
       </nav>
 
       <!-- Git Changes -->
-      <nav class="sidebar-section" id="git-changes-section" aria-label="Git changes">
-        <div class="section-label">Git Changes</div>
+      <nav class="sidebar-section" id="git-changes-section" aria-label="Git Changes">
+        <div class="section-label" role="button" tabindex="0" aria-expanded="false" aria-controls="git-changes-list">Git Changes</div>
         <div id="git-changes-list"></div>
       </nav>
 
       <!-- Bookmarks -->
       <nav class="sidebar-section" id="bookmark-section" aria-label="Bookmarks">
-        <div class="section-label">Bookmarks</div>
+        <div class="section-label" role="button" tabindex="0" aria-expanded="false" aria-controls="bookmark-list">Bookmarks</div>
         <div id="bookmark-list"></div>
       </nav>
 
       <!-- Recent files -->
-      <nav class="sidebar-section" id="recent-section" aria-label="Recent files">
-        <div class="section-label">Recent</div>
+      <nav class="sidebar-section" id="recent-section" aria-label="Recent">
+        <div class="section-label" role="button" tabindex="0" aria-expanded="false" aria-controls="recent-list">Recent</div>
         <div id="recent-list"></div>
       </nav>
 
     </div>
 <!-- Resizable divider --><div class="divider" id="sidebar-divider"></div>
     <!-- Main: tabs + breadcrumb + code viewer -->
-    <main class="main">
+    <main class="main" id="main-content">
 
       <!-- Tab bar -->
       <div class="tab-bar" id="tab-bar" role="tablist"></div>
@@ -75,7 +75,7 @@
       </div>
 
       <!-- Code viewer -->
-      <div class="code-viewer" id="code-viewer" tabindex="0">
+      <div class="code-viewer" id="code-viewer" role="region" aria-label="Code viewer" tabindex="0">
         <div class="welcome">
           <div class="mascot" aria-hidden="true">
             <svg viewBox="0 0 120 170" width="120" height="170" xmlns="http://www.w3.org/2000/svg">
@@ -94,20 +94,16 @@
               <path d="M65 18 L40 70 L54 70 L46 130 L78 68 L63 68 Z"
                     fill="#FFF3B0" opacity="0.35"/>
 
-              <!-- Left eye -->
-              <ellipse cx="49" cy="72" rx="5.5" ry="6.5" fill="#2D1B00"/>
-              <circle cx="51" cy="70" r="2.2" fill="#FFF"/>
-
-              <!-- Right eye -->
-              <ellipse cx="71" cy="72" rx="5.5" ry="6.5" fill="#2D1B00"/>
-              <circle cx="73" cy="70" r="2.2" fill="#FFF"/>
-
-              <!-- Smile -->
-              <path d="M49 84 Q60 94 71 84" fill="none" stroke="#2D1B00" stroke-width="2.5" stroke-linecap="round"/>
-
-              <!-- Cheek blush -->
-              <ellipse cx="42" cy="82" rx="4" ry="2.5" fill="#FF9A56" opacity="0.45"/>
-              <ellipse cx="78" cy="82" rx="4" ry="2.5" fill="#FF9A56" opacity="0.45"/>
+              <!-- Face (animated) -->
+              <g class="mascot-face">
+                <ellipse cx="49" cy="72" rx="5.5" ry="6.5" fill="#2D1B00"/>
+                <circle cx="51" cy="70" r="2.2" fill="#FFF"/>
+                <ellipse cx="71" cy="72" rx="5.5" ry="6.5" fill="#2D1B00"/>
+                <circle cx="73" cy="70" r="2.2" fill="#FFF"/>
+                <path d="M49 84 Q60 94 71 84" fill="none" stroke="#2D1B00" stroke-width="2.5" stroke-linecap="round"/>
+                <ellipse cx="42" cy="82" rx="4" ry="2.5" fill="#FF9A56" opacity="0.45"/>
+                <ellipse cx="78" cy="82" rx="4" ry="2.5" fill="#FF9A56" opacity="0.45"/>
+              </g>
             </svg>
           </div>
           <div class="welcome-logo">Jolt</div>
@@ -125,7 +121,7 @@
   </div>
 
   <!-- Search results panel (slides in from right) -->
-  <aside class="search-panel" id="search-panel" aria-label="Search results">
+  <aside class="search-panel" id="search-panel" aria-label="Search results" aria-hidden="true" inert>
     <div class="panel-header">
       <strong>Results</strong>
       <button id="search-history-btn" title="Search history" aria-label="Search history">&#x231A;</button>
@@ -138,9 +134,9 @@
   </aside>
 
   <!-- Settings panel (slides in from right) -->
-  <aside class="settings-panel" id="settings-panel" aria-label="Settings">
+  <aside class="settings-panel" id="settings-panel" aria-label="Settings" aria-hidden="true" inert>
     <div class="panel-header">
-      <strong>Settings</strong>
+      <h2>Settings</h2>
       <button id="settings-close" aria-label="Close settings">&times;</button>
     </div>
 
@@ -198,12 +194,19 @@
       </div>
     </div>
 
+    <div class="settings-section">
+      <h3>Feedback</h3>
+      <div class="setting-row">
+        <button class="feedback-btn" id="feedback-btn" title="Report issue" aria-label="Report issue">&#x1F41B; Report an issue</button>
+      </div>
+    </div>
+
     <button class="settings-save-btn" id="settings-save">Save Settings</button>
     <div class="settings-saved-msg" id="settings-saved-msg"></div>
   </aside>
 
   <!-- Inspector panel (navigation results: definition, references, hierarchy, call graph) -->
-  <aside class="inspector-panel" id="inspector-panel" aria-label="Inspector">
+  <aside class="inspector-panel" id="inspector-panel" aria-label="Inspector" aria-hidden="true" inert>
     <div class="panel-header">
       <strong id="inspector-title">Inspector</strong>
       <button id="inspector-close" aria-label="Close inspector">&times;</button>
@@ -213,7 +216,7 @@
 
   <!-- Quick Open modal (Ctrl+P) -->
   <div class="qo-backdrop" id="qo-backdrop">
-    <div class="qo-dialog">
+    <div class="qo-dialog" role="dialog" aria-modal="true" aria-label="Quick open">
       <input type="text" id="qo-input" placeholder="Go to file or symbol…" autocomplete="off" spellcheck="false">
       <div class="qo-list" id="qo-list"></div>
     </div>
@@ -221,7 +224,7 @@
 
   <!-- Feedback modal -->
   <div class="modal-backdrop" id="feedback-modal">
-    <div class="modal-content">
+    <div class="modal-content" role="dialog" aria-modal="true" aria-label="Report an issue">
       <div class="panel-header">
         <strong>Report an Issue</strong>
       </div>
@@ -270,6 +273,11 @@
   <!-- Collapsible sidebar sections + Git commits list -->
   <script>
     document.addEventListener('DOMContentLoaded', () => {
+      // ── HTML escape helper (order matters: & first) ──
+      function esc(s) {
+        return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
+      }
+
       // ── Accordion sidebar sections (one open at a time) ──
       const $sections = document.querySelectorAll('.sidebar, .sidebar-section');
       $sections.forEach(section => {
@@ -277,16 +285,13 @@
         if (!label) return;
         label.addEventListener('click', (e) => {
           if (e.target.closest('button')) return;
+          const wasOpen = !section.classList.contains('collapsed');
           // Collapse all sections first
           $sections.forEach(s => { s.classList.add('collapsed'); s.querySelector('.section-label')?.classList.add('collapsed'); });
-          // Expand the clicked one (if it was collapsed)
-          if (section.classList.contains('collapsed')) {
+          // Only expand if it was previously closed (toggle behavior)
+          if (!wasOpen) {
             section.classList.remove('collapsed');
             label.classList.remove('collapsed');
-          } else {
-            // Was already open → collapse it (allow all-closed state)
-            section.classList.add('collapsed');
-            label.classList.add('collapsed');
           }
         });
       });
@@ -308,13 +313,19 @@
 
           let html = '<div class="gc-commits-label">Recent Commits</div>';
 
+          if (!data.commits || data.commits.length === 0) {
+            html += '<div class="empty-hint">No commits yet</div>';
+            $gitList.insertAdjacentHTML('beforeend', html);
+            return;
+          }
+
           for (const c of (data.commits || [])) {
             const hash = c.hash ? c.hash.substring(0, 8) : '';
-            const msg = (c.message || c.subject || '').split('\n')[0];
+            const msg = esc((c.message || c.subject || '').split('\n')[0]);
             const author = c.author || '';
-            html += '<div class="gc-commit-item" data-hash="' + hash + '" title="' + msg.replace(/"/g, '&quot;') + '">';
+            html += '<div class="gc-commit-item" role="button" tabindex="0" data-hash="' + hash + '" title="' + msg + '">';
             html += '<span class="gc-hash">' + hash + '</span>';
-            html += '<span class="gc-msg">' + msg.replace(/</g, '&lt;') + '</span>';
+            html += '<span class="gc-msg">' + msg + '</span>';
             html += '</div>';
           }
 
@@ -341,12 +352,14 @@
                 const d = await r.json();
                 for (const c of (d.commits || [])) {
                   const h = c.hash ? c.hash.substring(0, 8) : '';
-                  const m = (c.message || c.subject || '').split('\n')[0];
+                  const m = esc((c.message || c.subject || '').split('\n')[0]);
                   const div = document.createElement('div');
                   div.className = 'gc-commit-item';
+                  div.setAttribute('role', 'button');
+                  div.setAttribute('tabindex', '0');
                   div.dataset.hash = h;
                   div.title = m;
-                  div.innerHTML = '<span class="gc-hash">' + h + '</span><span class="gc-msg">' + m.replace(/</g, '&lt;') + '</span>';
+                  div.innerHTML = '<span class="gc-hash">' + h + '</span><span class="gc-msg">' + m + '</span>';
                   div.addEventListener('click', () => { location.hash = '#/git/commits/' + h; });
                   moreBtn.before(div);
                 }

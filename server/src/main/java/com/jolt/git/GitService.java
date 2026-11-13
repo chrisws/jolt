@@ -90,7 +90,7 @@ public class GitService {
             "abbrevHash", c.getName().substring(0, Math.min(8, c.getName().length())),
             "author", ident != null ? ident.getName() : "unknown",
             "email", ident != null ? ident.getEmailAddress() : "",
-            "date", ident != null ? ident.getWhen().toString() : "",
+            "date", ident != null ? ident.getWhen().toInstant().toString() : "",
             "message", c.getFullMessage().trim()
         ));
       }
@@ -235,7 +235,7 @@ public class GitService {
       detail.put("hash", commit.getName());
       detail.put("author", ident != null ? ident.getName() : "unknown");
       detail.put("email", ident != null ? ident.getEmailAddress() : "");
-      detail.put("date", ident != null ? ident.getWhen().toString() : "");
+      detail.put("date", ident != null ? ident.getWhen().toInstant().toString() : "");
       detail.put("message", commit.getFullMessage().trim());
 
       List<String> filesChanged = new ArrayList<>();
@@ -322,8 +322,8 @@ public class GitService {
       Map<String, Object> result = new LinkedHashMap<>();
       result.put("totalCommits", allCommits.size());
       result.put("totalContributors", authorCounts.size());
-      result.put("firstCommitDate", first.getAuthorIdent() != null ? first.getAuthorIdent().getWhen().toString() : "");
-      result.put("lastCommitDate", last.getAuthorIdent() != null ? last.getAuthorIdent().getWhen().toString() : "");
+      result.put("firstCommitDate", first.getAuthorIdent() != null ? first.getAuthorIdent().getWhen().toInstant().toString() : "");
+      result.put("lastCommitDate", last.getAuthorIdent() != null ? last.getAuthorIdent().getWhen().toInstant().toString() : "");
       result.put("currentBranch", repo.getBranch());
       result.put("topCommitters", topCommitters);
 
@@ -435,7 +435,7 @@ public class GitService {
             "abbrevHash", c.getName().substring(0, Math.min(8, c.getName().length())),
             "author", ident != null ? ident.getName() : "unknown",
             "email", ident != null ? ident.getEmailAddress() : "",
-            "date", ident != null ? ident.getWhen().toString() : "",
+            "date", ident != null ? ident.getWhen().toInstant().toString() : "",
             "message", c.getFullMessage().trim().split("\n")[0], // first line only for list view
             "filesChanged", filesChanged
         ));

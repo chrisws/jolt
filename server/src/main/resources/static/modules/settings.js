@@ -7,8 +7,8 @@ const $modelSelect   = document.getElementById('set-model-select');
 const $modelLoadBtn  = document.getElementById('model-load-btn');
 const $modelStatus   = document.getElementById('model-status');
 
-export function openSettings() { loadSettings(); loadModels(); $settingsPanel.classList.add('open'); }
-export function closeSettings() { $settingsPanel.classList.remove('open'); }
+export function openSettings() { loadSettings(); loadModels(); $settingsPanel.removeAttribute('inert'); $settingsPanel.classList.add('open'); }
+export function closeSettings() { $settingsPanel.classList.remove('open'); $settingsPanel.setAttribute('inert', ''); }
 
 async function loadSettings() {
   try {
@@ -34,6 +34,10 @@ async function saveSettings() {
     'keybindings.mode':      document.getElementById('set-keybindings-mode').value || 'default'
   };
 
+  const originalText = $settingsSave.textContent;
+  $settingsSave.textContent = 'Saving…';
+  $settingsSave.disabled = true;
+
   try {
     const res = await fetch('/api/settings', {
       method: 'PUT',
@@ -43,7 +47,11 @@ async function saveSettings() {
     if (!res.ok) throw new Error('HTTP ' + res.status);
     $settingsMsg.textContent = 'Saved ✓';
     setTimeout(() => { $settingsMsg.textContent = ''; }, 2000);
-  } catch (err) { console.error('Settings save failed:', err); $settingsMsg.textContent = ''; }
+  } catch (err) { console.error('Settings save failed:', err); $settingsMsg.textContent = 'Save failed'; }
+  finally {
+    $settingsSave.textContent = originalText;
+    $settingsSave.disabled = false;
+  }
 }
 
  async function loadModels() {

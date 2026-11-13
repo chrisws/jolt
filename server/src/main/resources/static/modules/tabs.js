@@ -51,6 +51,7 @@ export function closeTab(id) {
 }
 
 export function closeAllTabs() {
+  if (state.tabs.length > 1 && !confirm('Close all ' + state.tabs.length + ' tabs?')) return;
   state.tabs = [];
   state.activeTab = null;
   renderTabs();
@@ -61,9 +62,12 @@ export function closeAllTabs() {
 export function renderTabs() {
   $tabBar.innerHTML = '';
   for (const tab of state.tabs) {
+    const isActive = tab.id === state.activeTab;
     const el = document.createElement('div');
-    el.className = 'tab' + (tab.id === state.activeTab ? ' active' : '');
+    el.className = 'tab' + (isActive ? ' active' : '');
     el.setAttribute('role', 'tab');
+    el.setAttribute('aria-selected', isActive ? 'true' : 'false');
+    el.setAttribute('tabindex', isActive ? '0' : '-1');
     el.innerHTML = '<span>' + esc(tab.name) + '</span><span class="close-btn" title="Close">&times;</span>';
     el.addEventListener('click', e => {
       if (e.target.classList.contains('close-btn')) closeTab(tab.id);
@@ -82,6 +86,21 @@ export function renderTabs() {
     homeBtn.addEventListener('click', () => closeAllTabs());
     $tabBar.appendChild(homeBtn);
   }
+
+  // Arrow key navigation within tab bar (roving tabindex)
+  $tabBar.addEventListener('keydown', e => {
+    const tabs = Array.from($tabBar.querySelectorAll('.tab'));
+    const idx = tabs.findIndex(t => t.getAttribute('tabindex') === '0');
+    if (idx === -1) return;
+    let next = -1;
+    if (e.key === 'ArrowRight') next = (idx + 1) % tabs.length;
+    else if (e.key === 'ArrowLeft') next = (idx - 1 + tabs.length) % tabs.length;
+    else return;
+    e.preventDefault();
+    tabs[idx].setAttribute('tabindex', '-1');
+    tabs[next].setAttribute('tabindex', '0');
+    tabs[next].focus();
+  });
 }
 
 export function showEmptyState() { $viewer.innerHTML = emptyState(); $crumb.innerHTML = ''; }
