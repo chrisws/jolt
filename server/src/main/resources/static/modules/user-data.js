@@ -70,6 +70,7 @@ async function loadBookmarks() {
 }
 
 async function addBookmark(path, line, label) {
+  if (!path) { console.warn('[BOOKMARKS] add skipped: no path'); return; }
   const key = path + ':' + line;
   const existing = $bookmarks.querySelectorAll('.bm-path');
   for (const el of existing) {

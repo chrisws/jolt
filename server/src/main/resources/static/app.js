@@ -98,7 +98,7 @@ document.getElementById('copy-link-btn').addEventListener('click', copyShareable
 document.getElementById('bookmark-btn').addEventListener('click', async () => {
   const { state } = await import('./modules/tabs.js');
   if (!state.activeTab) return;
-  if (window._joltAddBookmark) window._joltAddBookmark(state.activeTab.path, 1, state.activeTab.name);
+  if (window._joltAddBookmark) window._joltAddBookmark(state.activeTab, 1, state.activeTab.split('/').pop());
 });
 
 // Theme toggle
