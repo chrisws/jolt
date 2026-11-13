@@ -305,6 +305,15 @@ grid-template-columns: var(--sidebar-width, 260px) 5px 1fr;
 
 .tab .close-btn:hover { background: var(--border); }
 
+.tab .bm-btn {
+  width: 16px; height: 16px;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 3px;
+  font-size: 11px; line-height: 1;
+}
+
+.tab .bm-btn:hover { background: var(--border); }
+
 .tab-home-btn {
   margin-left: auto;
   padding: var(--sp-1) var(--sp-2);
@@ -335,6 +344,7 @@ grid-template-columns: var(--sidebar-width, 260px) 5px 1fr;
 .breadcrumb .crumb-file:hover { color: var(--accent); }
 .breadcrumb .crumb-dir { cursor: default; opacity: 0.85; }
 .breadcrumb .sep { cursor: default; opacity: 0.5; }
+.breadcrumb:empty { display: none; }
 
 /* ── Code viewer ───────────────────────────── */
 .code-viewer {
@@ -698,7 +708,7 @@ kbd {
 /* Stat cards */
 .stats-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: var(--sp-3); margin-bottom: var(--sp-4); }
 .stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: var(--sp-3); text-align: center; }
-.stat-value { font-size: 22px; font-weight: 700; color: var(--accent); word-break: break-all; }
+.stat-value { font-size: 22px; font-weight: 700; color: var(--accent); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .stat-label { font-size: var(--fs-small); color: var(--text-muted); margin-top: var(--sp-1); }
 
 /* Data table */
@@ -884,6 +894,11 @@ kbd {
   border-top: 1px solid var(--border);
 }
 
+.sidebar-section > :not(.section-label) {
+  overflow-y: auto;
+  min-height: 0;
+}
+
 .sidebar-section .section-label {
   padding: var(--sp-1) var(--sp-3);
   font-size: var(--fs-small);
@@ -1018,6 +1033,8 @@ kbd {
 #feedback-form .setting-row { margin-bottom: var(--sp-2); }
 #feedback-form .setting-row:has(#fb-message) { flex-direction: column; align-items: flex-start; gap: var(--sp-2); }
 #settings-panel .setting-row:has(#model-load-btn) { justify-content: flex-start; gap: var(--sp-2); }
+#model-load-btn { background: var(--surface-2); border: 1px solid var(--border); color: var(--text); cursor: pointer; font-size: var(--fs-base); padding: var(--sp-1) var(--sp-3); border-radius: var(--radius); }
+#model-load-btn:hover { background: var(--surface-3, var(--surface-2)); border-color: var(--accent); }
 
 .modal-actions {
   display: flex;
