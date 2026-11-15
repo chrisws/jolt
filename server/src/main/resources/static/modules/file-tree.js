@@ -149,7 +149,7 @@ export async function loadFileTree() {
 }
 
 /** Fetch git status and mark dirty files in the tree with a dot indicator. */
-async function markDirtyFiles() {
+export async function markDirtyFiles() {
   try {
     const res = await fetch('/api/git/status');
     if (!res.ok) return;

@@ -55,7 +55,7 @@ function openPopup(path) {
   $diffPanel.classList.add('open');
   $diffPanel.setAttribute('aria-hidden', 'false');
 
-  import('./git-pages.js').then(m => m.renderDirtyDiff(path, $diffBody));
+  import('./git-pages.js').then(m => m.renderDirtyDiff(path, $diffBody, { isPopup: true }));
 }
 
 export function closePopup() {

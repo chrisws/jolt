@@ -87,6 +87,26 @@ initContextMenu();
 initNavHistory();
 initDiffPanel();
 
+// ── Git status WebSocket ──────────────────────────────────
+(function initGitWs() {
+  const ws = new WebSocket('ws://' + location.host + '/ws');
+  ws.onmessage = (e) => {
+    try {
+      const data = JSON.parse(e.data);
+      if (data.type === 'git_status_changed') {
+        // Refresh dirty file markers in the tree
+        import('./modules/file-tree.js').then(m => m.markDirtyFiles());
+        // Notify git pages to refresh if visible
+        document.dispatchEvent(new CustomEvent('jolt:git-status-changed', { detail: data }));
+      } else if (data.type === 'file_changed') {
+        // File changed on disk — refresh tree markers too
+        import('./modules/file-tree.js').then(m => m.markDirtyFiles());
+      }
+    } catch (err) { console.debug('[WS] parse error:', err.message); }
+  };
+  ws.onclose = () => { console.debug('[WS] connection closed, will not auto-reconnect'); };
+})();
+
 // Async init — run in parallel with theme loading
 Promise.all([loadTheme(), loadFileTree()]);
 

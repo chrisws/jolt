@@ -58,6 +58,7 @@ public class ApiRoutes {
   private final GitService gitSvc;
   private final SettingsService settingsSvc;
   private final KeybindingsService keybindingsSvc;
+  private final RecentFilesService recentSvc;
   private DebugManager debugMgr; // nullable — set via setDebugManager()
 
   public void setDebugManager(DebugManager mgr) { this.debugMgr = mgr; }
@@ -75,6 +76,8 @@ public class ApiRoutes {
     this.gitSvc = new GitService(this.homeDir);
     this.settingsSvc = new SettingsService(this.homeDir);
     this.keybindingsSvc = new KeybindingsService();
+    var store = new PrefsStore(this.homeDir);
+    this.recentSvc = new RecentFilesService(store);
     this.embedder = embedder; // nullable — passed from ServerBootstrap
     this.readonly = readonly;
   }
@@ -245,6 +248,8 @@ public class ApiRoutes {
 
       int fromIdx = Math.min(startLine - 1, allLines.size());
       int toIdx = Math.min(endLine, allLines.size());
+
+      recentSvc.recordRecentFile(path);
 
       Map<String, Object> response = Map.of(
           "path", path,
@@ -818,7 +823,6 @@ public class ApiRoutes {
     var routes = app.unsafe.routes;
     var store = new PrefsStore(homeDir);
     var bookmarksSvc = new BookmarksService(store);
-    var recentSvc = new RecentFilesService(store);
     var searchSvc = new SearchHistoryService(store);
 
     routes.get("/api/bookmarks", ctx -> {

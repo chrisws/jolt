@@ -14,6 +14,9 @@ export function initRouter() {
   route();
 }
 
+/** Re-run the current route (useful for refreshing after external changes). */
+export function handleRoute() { route(); }
+
 function handleShareableLink() {
   const params = new URLSearchParams(location.search);
   const file = params.get('file');

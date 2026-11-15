@@ -280,6 +280,19 @@ public class GitService {
     }
   }
 
+  /** Get the current HEAD commit hash, or empty string if not a repo. */
+  public String headHash() {
+    try (Git git = Git.open(homeDir.toFile())) {
+      var head = git.getRepository().resolve("HEAD");
+      return head != null ? head.getName() : "";
+    } catch (Exception e) {
+      return "";
+    }
+  }
+
+  /** Expose the home directory for use by other services. */
+  public Path getHomeDir() { return homeDir; }
+
   /** Project-level statistics: total commits, contributors, dates, top committers. */
   public Map<String, Object> stats() {
     try (Git git = Git.open(homeDir.toFile())) {

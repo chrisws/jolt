@@ -110,6 +110,9 @@ public class SettingsService {
     defaults.put("git.diff.defaultView", "unified"); // "unified" | "split" | "raw"
     defaults.put("git.diff.viewMode", "tab");     // "tab" | "popup" — how diff is displayed
 
+    // Git polling settings
+    defaults.put("git.pollInterval", 5);          // seconds: 3, 5, 10, or 30
+
     // Debug settings
     defaults.put("debug.java.basePort", 5005);     // base JDWP port (auto-increments per session)
     defaults.put("debug.gdb.path", "gdb");         // path to GDB binary
@@ -127,6 +130,7 @@ public class SettingsService {
            "gitAutoRefresh",
            "search.fuzzy.maxEdits", "search.suggest.limit",
            "git.diff.maxLines", "git.diff.defaultView", "git.diff.viewMode",
+           "git.pollInterval",
            "debug.java.basePort", "debug.gdb.path", "debug.gdb.mode",
            "debug.jdb.path", "debug.defaultStepMode" -> true;
       default -> false;

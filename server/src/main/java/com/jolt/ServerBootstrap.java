@@ -101,6 +101,11 @@ public final class ServerBootstrap {
     });
     fileWatcher.start();
 
+    // ─── Git status poller ────────────────────────────────────
+    var gitSvc = new com.jolt.git.GitService(homeDir);
+    var gitPoller = new com.jolt.git.GitStatusPoller(gitSvc, wsHub, settingsService);
+    gitPoller.start();
+
     // ─── Start ───────────────────────────────────────────────
     app.start(port);
     log.info("Jolt server listening on http://{}:{}/", host, port);
@@ -109,6 +114,7 @@ public final class ServerBootstrap {
       try {
         app.stop();
         fileWatcher.close();
+        gitPoller.close();
         debugMgr.shutdown();
         indexer.close();
         if (authService != null) authService.clearAll();

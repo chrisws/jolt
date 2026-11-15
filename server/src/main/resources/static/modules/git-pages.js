@@ -3,6 +3,15 @@ import { authFetch } from './url-utils.js';
 
 const $viewer = document.getElementById('code-viewer');
 
+// Auto-refresh visible git pages when status changes
+document.addEventListener('jolt:git-status-changed', () => {
+  const hash = location.hash || '';
+  if (hash.startsWith('#/git/')) {
+    // Re-render the current git page
+    import('./router.js').then(m => m.handleRoute());
+  }
+});
+
 function esc(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
 
 function fmtDate(isoStr) {
@@ -724,11 +733,16 @@ async function showDirtyDiff(path) {
   }
 }
 
-export async function renderDirtyDiff(path, target) {
+export async function renderDirtyDiff(path, target, options) {
   const $viewer = target || document.getElementById('code-viewer');
+  const opts = options || {};
 
   let html = '<div class="git-page">';
-  html += '<div class="git-header"><h1>Working Tree Diff</h1><a href="#/git/changes" class="git-nav-link">&larr; Changes</a></div>';
+  if (!opts.isPopup) {
+    html += '<div class="git-header"><h1>Working Tree Diff</h1><a href="#/git/changes" class="git-nav-link">&larr; Changes</a></div>';
+  } else {
+    html += '<div class="git-header"><h1>Working Tree Diff</h1></div>';
+  }
   html += '<div class="commit-detail-header">';
   html += '<div class="cd-row"><strong class="diff-file-link" data-path="' + esc(path) + '" title="Open source file">' + esc(path) + '</strong></div>';
   html += '</div>';
