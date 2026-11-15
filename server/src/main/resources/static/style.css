@@ -862,6 +862,70 @@ kbd {
 
 #inspector-body { padding: var(--sp-2) var(--sp-3); }
 
+/* ── Diff popup panel ─────────────────────────── */
+.diff-panel {
+  position: fixed;
+  top: 10%; left: 50%;
+  transform: translateX(-50%) scale(0.95);
+  width: 70%;
+  height: 80%;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius, 8px);
+  box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+  z-index: 200;
+  display: flex;
+  flex-direction: column;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.diff-panel.open {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateX(-50%) scale(1);
+}
+
+.diff-panel .panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--sp-2) var(--sp-3);
+  border-bottom: 1px solid var(--border);
+}
+
+.diff-panel .panel-header button {
+  background: none; border: none; color: var(--text-muted);
+  font-size: var(--fs-large); cursor: pointer; padding: 0 var(--sp-1);
+}
+
+#diff-panel-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--sp-2) var(--sp-3);
+}
+
+/* ── Diff tab styling ─────────────────────────── */
+.tab.diff-tab {
+  border-left: 3px solid #e8a33d;
+}
+
+.diff-tab-icon {
+  color: #e8a33d;
+  font-weight: bold;
+  margin-right: 4px;
+}
+
+/* ── Diff file link (in diff header) ────────────── */
+.diff-file-link {
+  color: var(--accent, #58a6ff);
+}
+
+.diff-file-link:hover {
+  text-decoration: underline;
+}
+
 .insp-section { margin-bottom: var(--sp-3); }
 .insp-section h4 { margin: 0 0 var(--sp-1) 0; font-size: var(--fs-small); color: var(--text-muted); text-transform: uppercase; }
 
@@ -1527,6 +1591,8 @@ button, a, input, select, .section-label, .gc-commit-item, .tab {
 
   /* Panels go full-width on mobile */
   .search-panel, .settings-panel, .inspector-panel { width: 100%; right: 0; }
+  .diff-panel { width: 100%; height: 100%; top: 0; left: 0; transform: none; border-radius: 0; }
+  .diff-panel.open { transform: none; }
 }
 
 /* ── Skip link (visually hidden until focused) ── */

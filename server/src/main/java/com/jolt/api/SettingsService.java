@@ -108,6 +108,7 @@ public class SettingsService {
     // Git diff settings (Stage 2)
     defaults.put("git.diff.maxLines", 1000);      // cap diff rendering at N lines per file
     defaults.put("git.diff.defaultView", "unified"); // "unified" | "split" | "raw"
+    defaults.put("git.diff.viewMode", "tab");     // "tab" | "popup" — how diff is displayed
 
     // Debug settings
     defaults.put("debug.java.basePort", 5005);     // base JDWP port (auto-increments per session)
@@ -125,7 +126,7 @@ public class SettingsService {
            "wordWrap", "showLineNumbers", "minimapEnabled",
            "gitAutoRefresh",
            "search.fuzzy.maxEdits", "search.suggest.limit",
-           "git.diff.maxLines", "git.diff.defaultView",
+           "git.diff.maxLines", "git.diff.defaultView", "git.diff.viewMode",
            "debug.java.basePort", "debug.gdb.path", "debug.gdb.mode",
            "debug.jdb.path", "debug.defaultStepMode" -> true;
       default -> false;

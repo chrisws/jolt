@@ -724,13 +724,13 @@ async function showDirtyDiff(path) {
   }
 }
 
-export async function renderDirtyDiff(path) {
-  const $viewer = document.getElementById('code-viewer');
+export async function renderDirtyDiff(path, target) {
+  const $viewer = target || document.getElementById('code-viewer');
 
   let html = '<div class="git-page">';
   html += '<div class="git-header"><h1>Working Tree Diff</h1><a href="#/git/changes" class="git-nav-link">&larr; Changes</a></div>';
   html += '<div class="commit-detail-header">';
-  html += '<div class="cd-row"><strong>' + esc(path) + '</strong></div>';
+  html += '<div class="cd-row"><strong class="diff-file-link" data-path="' + esc(path) + '" title="Open source file">' + esc(path) + '</strong></div>';
   html += '</div>';
 
   html += '<div class="diff-view-toggle">';
@@ -744,21 +744,30 @@ export async function renderDirtyDiff(path) {
   html += '</div>';
   $viewer.innerHTML = html;
 
-  // View toggle handlers
-  document.querySelectorAll('.view-btn').forEach(btn => {
+  // View toggle handlers (scoped to this target)
+  $viewer.querySelectorAll('.view-btn').forEach(btn => {
     btn.addEventListener('click', () => {
-      document.querySelectorAll('.view-btn').forEach(b => b.classList.remove('active'));
+      $viewer.querySelectorAll('.view-btn').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
-      loadDirtyDiffContent(path, btn.dataset.view);
+      loadDirtyDiffContent(path, btn.dataset.view, $viewer);
     });
   });
 
+  // Filename click → navigate to source file tab
+  const fileLink = $viewer.querySelector('.diff-file-link');
+  if (fileLink) {
+    fileLink.style.cursor = 'pointer';
+    fileLink.addEventListener('click', () => {
+      import('./tabs.js').then(m => m.openTab(fileLink.dataset.path));
+    });
+  }
+
   // Initial load
-  loadDirtyDiffContent(path, 'unified');
+  loadDirtyDiffContent(path, 'unified', $viewer);
 }
 
-async function loadDirtyDiffContent(path, view) {
-  const diffArea = document.getElementById('diff-content');
+async function loadDirtyDiffContent(path, view, target) {
+  const diffArea = (target || document).querySelector('#diff-content');
   if (!diffArea) return;
   diffArea.innerHTML = '<div class="loading">Loading diff…</div>';
 

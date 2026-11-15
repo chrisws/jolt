@@ -34,6 +34,11 @@ export function activateTab(id) {
   // Notify nav-history and other listeners (avoids circular import)
   document.dispatchEvent(new CustomEvent('jolt:tab-activated', { detail: { path: id } }));
   // Lazy-import to avoid circular deps at load time
+  const tab = state.tabs.find(t => t.id === id);
+  if (tab && tab.isDiff) {
+    // Diff tabs render their own content via renderDirtyDiff (called by diff-panel.js)
+    return;
+  }
   import('./file-viewer.js').then(m => m.loadFile(id));
 }
 
@@ -64,11 +69,12 @@ export function renderTabs() {
   for (const tab of state.tabs) {
     const isActive = tab.id === state.activeTab;
     const el = document.createElement('div');
-    el.className = 'tab' + (isActive ? ' active' : '');
+    el.className = 'tab' + (isActive ? ' active' : '') + (tab.isDiff ? ' diff-tab' : '');
     el.setAttribute('role', 'tab');
     el.setAttribute('aria-selected', isActive ? 'true' : 'false');
     el.setAttribute('tabindex', isActive ? '0' : '-1');
-    el.innerHTML = '<span>' + esc(tab.name) + '</span><span class="close-btn" title="Close">&times;</span>';
+    const icon = tab.isDiff ? '<span class="diff-tab-icon" aria-hidden="true">\u00B1</span>' : '';
+    el.innerHTML = icon + '<span>' + esc(tab.name) + '</span><span class="close-btn" title="Close">&times;</span>';
     el.addEventListener('click', e => {
       if (e.target.classList.contains('close-btn')) closeTab(tab.id);
       else activateTab(tab.id);

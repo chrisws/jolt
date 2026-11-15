@@ -71,6 +71,7 @@
       <div class="breadcrumb-bar">
         <div class="breadcrumb" id="breadcrumb"></div>
         <button class="blame-toggle" id="blame-toggle" title="Toggle git blame" aria-label="Toggle git blame">Blame</button>
+        <button class="blame-toggle" id="diff-btn" title="View working tree diff" aria-label="View working tree diff" style="display:none">&#x00B1; Diff</button>
         <button class="blame-toggle" id="copy-link-btn" title="Copy shareable link" aria-label="Copy shareable link">&#x1F517; Link</button>
         <button class="blame-toggle" id="bookmark-btn" title="Bookmark this file" aria-label="Bookmark this file">&#x1F516; Bookmark</button>
       </div>
@@ -167,6 +168,13 @@
           <option value="raw">Raw</option>
         </select>
       </div>
+      <div class="setting-row">
+        <label for="set-diff-mode">Diff display</label>
+        <select id="set-diff-mode">
+          <option value="tab">Tab</option>
+          <option value="popup">Popup</option>
+        </select>
+      </div>
     </div>
 
     <div class="settings-section">
@@ -213,6 +221,15 @@
       <button id="inspector-close" aria-label="Close inspector">&times;</button>
     </div>
     <div id="inspector-body"></div>
+  </aside>
+
+  <!-- Diff popup panel (overlay) -->
+  <aside class="diff-panel" id="diff-panel" aria-label="Working Tree Diff" aria-hidden="true" inert>
+    <div class="panel-header">
+      <strong>Working Tree Diff</strong>
+      <button id="diff-panel-close" aria-label="Close diff">&times;</button>
+    </div>
+    <div id="diff-panel-body"></div>
   </aside>
 
   <!-- Quick Open modal (Ctrl+P) -->

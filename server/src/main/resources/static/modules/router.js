@@ -88,7 +88,15 @@ function route() {
 
     if (parts.length === 1) { renderGitStats(); }
     else if (parts[1] === 'changes') { renderGitChanges(); }
-    else if (parts[1] === 'diff' && parts[2]) { renderDirtyDiff(decodeURIComponent(parts.slice(2).join('/'))); }
+    else if (parts[1] === 'diff' && parts[2]) {
+      // Route through diff-panel to respect user's mode preference
+      const filePath = decodeURIComponent(parts.slice(2).join('/'));
+      import('./diff-panel.js').then(m => m.openDiff(filePath));
+      // Restore normal UI (don't hide tabs/breadcrumb for diff)
+      document.querySelector('.sidebar').style.display = '';
+      document.querySelector('.tab-bar').style.display = '';
+      document.querySelector('.breadcrumb').style.display = '';
+    }
     else if (parts[1] === 'commits' && parts[2]) { renderCommitDetail(parts[2]); }
     else if (parts[1] === 'commits') { renderCommitList(parts.slice(2)); }
     else { renderGitStats(); }

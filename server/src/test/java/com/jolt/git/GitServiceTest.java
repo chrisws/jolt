@@ -546,4 +546,84 @@ class GitServiceTest {
     assertTrue(remotes.isEmpty());
   }
 
+  // ── Working Tree Status & Diff (used by diff panel) ──────────────
+
+  @Test
+  void workingTreeStatus_cleanRepoReturnsEmpty() {
+    List<Map<String, String>> status = service.workingTreeStatus(true);
+    assertTrue(status.isEmpty());
+  }
+
+  @Test
+  void workingTreeStatus_modifiedFileDetected() throws Exception {
+    // Modify a tracked file without committing
+    Path file = tempDir.resolve("hello.txt");
+    Files.writeString(file, "line one\nline two CHANGED\nline three\n");
+
+    List<Map<String, String>> status = service.workingTreeStatus(false);
+    assertEquals(1, status.size());
+    assertEquals("hello.txt", status.get(0).get("path"));
+    assertEquals("modified", status.get(0).get("type"));
+  }
+
+  @Test
+  void workingTreeStatus_untrackedFileDetected() throws Exception {
+    // Create a new untracked file
+    Path newFile = tempDir.resolve("new-file.txt");
+    Files.writeString(newFile, "brand new content\n");
+
+    List<Map<String, String>> statusNoUntracked = service.workingTreeStatus(false);
+    assertTrue(statusNoUntracked.isEmpty());
+
+    List<Map<String, String>> statusWithUntracked = service.workingTreeStatus(true);
+    assertEquals(1, statusWithUntracked.size());
+    assertEquals("new-file.txt", statusWithUntracked.get(0).get("path"));
+    assertEquals("untracked", statusWithUntracked.get(0).get("type"));
+  }
+
+  @Test
+  void workingTreeStatus_deletedFileDetected() throws Exception {
+    // Delete a tracked file
+    Path file = tempDir.resolve("world.txt");
+    Files.delete(file);
+
+    List<Map<String, String>> status = service.workingTreeStatus(false);
+    assertEquals(1, status.size());
+    assertEquals("world.txt", status.get(0).get("path"));
+    assertEquals("deleted", status.get(0).get("type"));
+  }
+
+  @Test
+  void workingTreeDiff_modifiedFileReturnsUnifiedDiff() throws Exception {
+    // Modify a tracked file
+    Path file = tempDir.resolve("hello.txt");
+    Files.writeString(file, "line one\nline two COMPLETELY DIFFERENT\nline three\nadded line\n");
+
+    String diff = service.workingTreeDiff("hello.txt");
+    assertNotNull(diff);
+    assertFalse(diff.isEmpty());
+    assertTrue(diff.contains("---"));
+    assertTrue(diff.contains("+++"));
+    assertTrue(diff.contains("-line two modified"));
+    assertTrue(diff.contains("+line two COMPLETELY DIFFERENT"));
+  }
+
+  @Test
+  void workingTreeDiff_cleanFileReturnsEmpty() {
+    // No changes to hello.txt in the committed state
+    String diff = service.workingTreeDiff("hello.txt");
+    assertEquals("", diff);
+  }
+
+  @Test
+  void workingTreeDiff_untrackedFileShowsAllAsAdded() throws Exception {
+    Path newFile = tempDir.resolve("untracked.txt");
+    Files.writeString(newFile, "new line one\nnew line two\n");
+
+    String diff = service.workingTreeDiff("untracked.txt");
+    assertNotNull(diff);
+    assertTrue(diff.contains("+new line one"));
+    assertTrue(diff.contains("+new line two"));
+  }
+
 }

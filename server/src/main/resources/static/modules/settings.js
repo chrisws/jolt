@@ -20,6 +20,7 @@ async function loadSettings() {
     document.getElementById('set-suggest-limit').value  = s['search.suggest.limit'] ?? 10;
     document.getElementById('set-diff-maxlines').value  = s['git.diff.maxLines'] ?? 1000;
     document.getElementById('set-diff-view').value      = s['git.diff.defaultView'] ?? 'unified';
+    document.getElementById('set-diff-mode').value      = s['git.diff.viewMode'] ?? 'tab';
     document.getElementById('set-keybindings-mode').value = s['keybindings.mode'] ?? 'default';
 
     $settingsMsg.textContent = '';
@@ -32,6 +33,7 @@ async function saveSettings() {
     'search.suggest.limit':  parseInt(document.getElementById('set-suggest-limit').value, 10) || 10,
     'git.diff.maxLines':     parseInt(document.getElementById('set-diff-maxlines').value, 10) || 1000,
     'git.diff.defaultView':  document.getElementById('set-diff-view').value || 'unified',
+    'git.diff.viewMode':     document.getElementById('set-diff-mode').value || 'tab',
     'keybindings.mode':      document.getElementById('set-keybindings-mode').value || 'default'
   };
 

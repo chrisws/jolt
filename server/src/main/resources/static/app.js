@@ -13,6 +13,7 @@ import { initNavHistory } from './modules/nav-history.js';
 import { initDivider } from './modules/divider.js';
 import { initContextMenu } from './modules/context-menu.js';
 import { initSidebar } from './modules/sidebar.js';
+import { initDiffPanel } from './modules/diff-panel.js';
 
 // ── Auth gate ──────────────────────────────────────────────
 async function checkAuth() {
@@ -84,6 +85,7 @@ initQuickOpen();
 initDivider();
 initContextMenu();
 initNavHistory();
+initDiffPanel();
 
 // Async init — run in parallel with theme loading
 Promise.all([loadTheme(), loadFileTree()]);

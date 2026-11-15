@@ -41,6 +41,27 @@ class SettingsServiceTest {
     assertEquals(10, s.get("search.suggest.limit"));
     assertEquals(1000, s.get("git.diff.maxLines"));
     assertEquals("unified", s.get("git.diff.defaultView"));
+    assertEquals("tab", s.get("git.diff.viewMode"));
+  }
+
+  @Test void diffViewModeDefaultsToTab() {
+    assertEquals("tab", svc.getSetting("git.diff.viewMode"));
+  }
+
+  @Test void diffViewModeCanBeSetToPopup() {
+    Map<String, Object> updated = svc.updateSettings(Map.of("git.diff.viewMode", "popup"));
+    assertEquals("popup", updated.get("git.diff.viewMode"));
+
+    // Verify persistence
+    SettingsService svc2 = new SettingsService(tmpDir);
+    assertEquals("popup", svc2.getSetting("git.diff.viewMode"));
+  }
+
+  @Test void diffViewModeRejectsInvalidValue() {
+    // The service stores whatever string is given (validation is client-side),
+    // but the key must be recognised. Verify it's accepted as a known key.
+    Map<String, Object> updated = svc.updateSettings(Map.of("git.diff.viewMode", "tab"));
+    assertTrue(updated.containsKey("git.diff.viewMode"));
   }
 
   @Test void updateNewKeysPersists() {

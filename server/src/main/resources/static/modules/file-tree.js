@@ -168,7 +168,7 @@ async function markDirtyFiles() {
           dot.title = 'View diff';
           dot.addEventListener('click', (ev) => {
             ev.stopPropagation();
-            location.hash = '/git/diff/' + encodeURIComponent(path);
+            import('./diff-panel.js').then(m => m.openDiff(path));
           });
           label.appendChild(dot);
         }
