@@ -1,13 +1,13 @@
 {
   "model": {
     "path": "/home/chrisws/models/Swift-1.5-Qwen3.8-27B-GSQ-RCO-IQ3_S-mtp.gguf",
-    "kv_cache_preset": "compact",
+    "kv_cache_preset": "balanced",
     "n_ctx": 65536,
     "n_batch": 512,
     "n_ubatch": 0,
     "n_gpu_layers": 66,
-    "n_threads": 0,
-    "n_threads_batch": 0,
+    "n_threads": 16,
+    "n_threads_batch": 16,
     "temperature": 0.2,
     "top_p": 0.95,
     "min_p": 0.0,
@@ -62,6 +62,7 @@
   "controls": {
     "permission_prompt": false,
     "disable_run": true,
+    "disable_curl": false,
     "disable_save_on_exit": false,
     "disable_write_validate": true,
     "disable_patch_validate": true,
@@ -72,6 +73,8 @@
     "enabled": false,
     "port": 8080
   },
-  "extra_dirs": [],
+  "extra_dirs": [
+    "/home/chrisws/github/javalin"
+  ],
   "knowledge_files": []
 }
