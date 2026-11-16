@@ -1189,6 +1189,54 @@ kbd {
   text-align: right; padding-right: var(--sp-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 
+/* ── Problems panel ─────────────────────────── */
+
+.problems-panel {
+  border-top: 1px solid var(--border);
+  background: var(--surface);
+  max-height: 200px;
+  overflow-y: auto;
+  font-size: var(--fs-small);
+}
+
+.problems-header {
+  display: flex; align-items: center; gap: var(--sp-2);
+  padding: var(--sp-1) var(--sp-3);
+  position: sticky; top: 0; background: var(--surface-2); z-index: 1;
+}
+
+.problems-title { font-weight: 600; color: var(--text-muted); }
+
+.problems-count {
+  background: var(--accent-dim); color: #fff; border-radius: 8px;
+  font-size: 10px; padding: 0 6px; min-width: 18px; text-align: center;
+}
+
+.problems-close {
+  margin-left: auto; background: none; border: none; color: var(--text-muted);
+  font-size: 16px; cursor: pointer; padding: 0 4px; line-height: 1;
+}
+.problems-close:hover { color: var(--text); }
+
+.problems-list { padding: var(--sp-1) 0; }
+
+.problem-item {
+  display: flex; align-items: baseline; gap: var(--sp-2);
+  padding: 2px var(--sp-3); cursor: pointer; font-family: var(--font-code); font-size: 11px;
+}
+.problem-item:hover { background: var(--surface-2); }
+
+.prob-loc { color: var(--accent); min-width: 40px; text-align: right; flex-shrink: 0; }
+
+.prob-msg { color: var(--text); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.prob-rule { color: var(--text-muted); font-size: 10px; flex-shrink: 0; }
+
+.prob-error .prob-msg { color: #f48771; }
+.prob-warning .prob-msg { color: #e5c07b; }
+
+.problems-empty { padding: var(--sp-2) var(--sp-3); color: var(--text-muted); font-style: italic; }
+
 .branch-select {
   background: var(--bg); color: var(--text); border: 1px solid var(--border);
   border-radius: var(--radius); font-size: var(--fs-small); padding: 2px var(--sp-2); margin-left: auto; margin-right: var(--sp-2);

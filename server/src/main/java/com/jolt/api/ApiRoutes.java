@@ -60,8 +60,11 @@ public class ApiRoutes {
   private final KeybindingsService keybindingsSvc;
   private final RecentFilesService recentSvc;
   private DebugManager debugMgr; // nullable — set via setDebugManager()
+  private com.jolt.lint.LintService lintSvc; // lazy-init
 
   public void setDebugManager(DebugManager mgr) { this.debugMgr = mgr; }
+
+  public void setLintService(com.jolt.lint.LintService svc) { this.lintSvc = svc; }
 
   private final boolean readonly;
 
@@ -96,6 +99,7 @@ public class ApiRoutes {
     registerFeedbackRoutes(app);
     registerSettingsRoutes(app);
     registerDebugRoutes(app);
+    registerLintRoutes(app);
 
     log.info("API routes registered");
   }
@@ -1179,4 +1183,24 @@ public class ApiRoutes {
     log.info("Re-index complete: {} classes", allSymbols.size());
   }
 
+  private void registerLintRoutes(Javalin app) {
+    var routes = app.unsafe.routes;
+
+    routes.get("/api/file/lint", ctx -> {
+      String path = ctx.queryParam("path");
+      if (path == null || path.isBlank()) { ctx.status(400).result("Missing 'path' parameter"); return; }
+
+      Path filePath = homeDir.resolve(path).normalize();
+
+      if (!filePath.startsWith(homeDir)) { ctx.status(403).result("Access denied"); return; }
+
+      if (!Files.exists(filePath)) { ctx.status(404).result("File not found: " + path); return; }
+      if (!Files.isRegularFile(filePath)) { ctx.status(400).result("Not a file: " + path); return; }
+
+      if (lintSvc == null) { ctx.status(503).result("Lint service not available"); return; }
+
+      List<Problem> problems = lintSvc.lint(filePath);
+      ctx.json(problems);
+    });
+  }
 }

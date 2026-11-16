@@ -80,6 +80,17 @@
         <button class="blame-toggle" id="diff-btn" title="View working tree diff" aria-label="View working tree diff" style="display:none">&#x00B1; Diff</button>
         <button class="blame-toggle" id="copy-link-btn" title="Copy shareable link" aria-label="Copy shareable link">&#x1F517; Link</button>
         <button class="blame-toggle" id="bookmark-btn" title="Bookmark this file" aria-label="Bookmark this file">&#x1F516; Bookmark</button>
+        <button class="blame-toggle" id="lint-btn" title="Run linter on this file" aria-label="Run linter">&#x26A0; Lint</button>
+      </div>
+
+      <!-- Problems panel -->
+      <div class="problems-panel" id="problems-panel" style="display:none">
+        <div class="problems-header">
+          <span class="problems-title">Problems</span>
+          <span class="problems-count" id="problems-count"></span>
+          <button class="problems-close" id="problems-close" title="Close">&times;</button>
+        </div>
+        <div class="problems-list" id="problems-list"></div>
       </div>
 
       <!-- Code viewer -->

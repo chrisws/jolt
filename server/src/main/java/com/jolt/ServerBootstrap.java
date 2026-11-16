@@ -90,6 +90,12 @@ public final class ServerBootstrap {
     SettingsService settingsService = new SettingsService(homeDir);
     DebugManager debugMgr = new DebugManager(homeDir, settingsService);
     routes.setDebugManager(debugMgr);
+
+    // ─── Lint service ────────────────────────────────────────
+    var compileDb = com.jolt.parse.CompileDb.loadFromProject(homeDir);
+    var lintSvc = new com.jolt.lint.LintService(compileDb);
+    routes.setLintService(lintSvc);
+
     routes.register(app);
 
     // ─── File watcher ────────────────────────────────────────

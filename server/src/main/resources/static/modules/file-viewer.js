@@ -6,6 +6,9 @@ function esc(s) { const d = document.createElement('div'); d.textContent = s; re
 let _mdMode = 'rendered'; // 'raw' | 'rendered'
 
 export async function loadFile(path) {
+  // Clear lint/problems on file switch
+  clearProblems();
+
   // Show loading state
   $viewer.innerHTML = '<div class="loading-state"><span class="loading-spinner"></span> Loading…</div>';
 
@@ -175,6 +178,79 @@ function removeBlameGutter() {
   $viewer.querySelectorAll('.blame-info').forEach(el => el.remove());
 }
 
+/* ── Lint / Problems Panel ─────────────────────────── */
+
+let lintActive = false;
+
+export async function toggleLint(filePath) {
+  const $panel = document.getElementById('problems-panel');
+  const $btn = document.getElementById('lint-btn');
+
+  if (lintActive) {
+    lintActive = false;
+    if ($panel) $panel.style.display = 'none';
+    if ($btn) $btn.classList.remove('active');
+    return;
+  }
+
+  if ($btn) $btn.classList.add('active');
+
+  try {
+    const res = await fetch('/api/file/lint?path=' + encodeURIComponent(filePath));
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const problems = await res.json();
+
+    lintActive = true;
+    renderProblems(problems);
+
+    if ($panel) $panel.style.display = '';
+  } catch (err) {
+    console.error('Lint failed:', err);
+    lintActive = false;
+    if ($btn) $btn.classList.remove('active');
+  }
+}
+
+function renderProblems(problems) {
+  const $list = document.getElementById('problems-list');
+  const $count = document.getElementById('problems-count');
+
+  if (!$list) return;
+
+  if (problems.length === 0) {
+    $list.innerHTML = '<div class="problems-empty">No problems found ✓</div>';
+    if ($count) $count.textContent = '0';
+    return;
+  }
+
+  let html = '';
+  for (const p of problems) {
+    const sevClass = p.severity === 'ERROR' ? 'prob-error' : 'prob-warning';
+    const loc = p.line + ':' + (p.column || 1);
+    html += '<div class="problem-item ' + sevClass + '" data-line="' + p.line + '">';
+    html += '<span class="prob-loc">' + loc + '</span>';
+    html += '<span class="prob-msg">' + esc(p.message) + '</span>';
+    html += '<span class="prob-rule">' + esc(p.ruleId || '') + '</span>';
+    html += '</div>';
+  }
+
+  $list.innerHTML = html;
+  if ($count) $count.textContent = problems.length;
+
+  // Click a problem → scroll to that line
+  $list.querySelectorAll('.problem-item').forEach(el => {
+    el.addEventListener('click', () => { gotoLine(Number(el.dataset.line)); });
+  });
+}
+
+export function clearProblems() {
+  lintActive = false;
+  const $panel = document.getElementById('problems-panel');
+  const $btn = document.getElementById('lint-btn');
+  if ($panel) $panel.style.display = 'none';
+  if ($btn) $btn.classList.remove('active');
+}
+
 /* ── Go to Line ──────────────────────────────────── */
 
 export function gotoLine(n) {
@@ -199,7 +275,23 @@ export function initFileViewer() {
     });
   }
 
-  // Clear blame gutter when switching files
-  const origLoad = loadFile;
+  // Lint button
+  const $lintBtn = document.getElementById('lint-btn');
+  if ($lintBtn) {
+    $lintBtn.addEventListener('click', () => {
+      import('./tabs.js').then(tabs => {
+        const path = tabs.state.activeTab;
+        if (path) toggleLint(path);
+      });
+    });
+  }
+
+  // Close problems panel button
+  const $close = document.getElementById('problems-close');
+  if ($close) {
+    $close.addEventListener('click', () => { clearProblems(); });
+  }
+
+  // Clear blame gutter + problems when switching files
   window._joltClearBlame = removeBlameGutter;
 }
