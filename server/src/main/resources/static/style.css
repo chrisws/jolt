@@ -1494,7 +1494,7 @@ body.resizing { cursor: col-resize; user-select: none; }
 
 .sidebar-section.collapsed > :not(.section-label),
 .sidebar.collapsed > :not(.section-label) {
-  display: none;
+  display: none !important;
 }
 
 .tree-header .tree-controls { margin-left: auto; }

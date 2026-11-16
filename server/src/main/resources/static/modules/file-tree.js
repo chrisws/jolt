@@ -130,6 +130,16 @@ export async function revealInTree(path) {
   const segments = path.split('/').filter(s => s.length > 0);
   if (segments.length === 0) return;
 
+  // Ensure the Project section is open (accordion: collapse others)
+  if ($fileTree.classList.contains('collapsed')) {
+    document.querySelectorAll('.sidebar, .sidebar-section').forEach(s => {
+      s.classList.add('collapsed');
+      s.querySelector('.section-label')?.classList.add('collapsed');
+    });
+    $fileTree.classList.remove('collapsed');
+    $fileTree.querySelector('.section-label')?.classList.remove('collapsed');
+  }
+
   let container = $fileTree;
 
   for (let i = 0; i < segments.length; i++) {
@@ -182,16 +192,32 @@ export async function loadFileTree() {
   // Section header with control buttons
   const header = document.createElement('div');
   header.className = 'section-label tree-header';
-  header.innerHTML = '<span>Project</span><span class="tree-controls"><button class="tree-btn" id="tree-collapse-all" title="Collapse all">&#x2195;</button><button class="tree-btn" id="tree-expand-all" title="Expand all">&#x2194;</button></span>';
+  header.innerHTML = '<span>Project</span><span class="tree-controls">' +
+    '<button class="tree-btn" id="tree-sync" title="Sync with editor">&#x2316;</button>' +
+    '<button class="tree-btn" id="tree-collapse-all" title="Collapse all">&#x2195;</button>' +
+    '<button class="tree-btn" id="tree-expand-all" title="Expand all">&#x2194;</button></span>';
 
   $fileTree.appendChild(header);
 
   header.addEventListener('click', (e) => {
     if (e.target.closest('button')) return;
-    $fileTree.classList.toggle('collapsed');
-    header.classList.toggle('collapsed');
+    const wasOpen = !$fileTree.classList.contains('collapsed');
+    document.querySelectorAll('.sidebar, .sidebar-section').forEach(s => {
+      s.classList.add('collapsed');
+      s.querySelector('.section-label')?.classList.add('collapsed');
+    });
+    if (!wasOpen) {
+      $fileTree.classList.remove('collapsed');
+      header.classList.remove('collapsed');
+    }
   });
 
+  document.getElementById('tree-sync').addEventListener('click', () => {
+    import('./tabs.js').then(m => {
+      const tab = m.state.tabs.find(t => t.id === m.state.activeTab);
+      if (tab && !tab.isGit) { revealInTree(tab.path); }
+    });
+  });
   document.getElementById('tree-collapse-all').addEventListener('click', collapseAll);
   document.getElementById('tree-expand-all').addEventListener('click', expandAll);
 

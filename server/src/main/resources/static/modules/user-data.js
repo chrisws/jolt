@@ -132,6 +132,9 @@ async function loadRecent() {
 
       el.addEventListener('click', () => {
         import('./tabs.js').then(m => m.openTab(r.path || r));
+        if (syncTreeWithEditor) {
+          import('./file-tree.js').then(m => m.revealInTree(r.path || r));
+        }
       });
 
       $recent.appendChild(el);
