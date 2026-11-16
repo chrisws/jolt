@@ -125,6 +125,57 @@ async function expandAll() {
   }
 }
 
+/** Reveal a file in the tree: expand ancestor dirs lazily, scroll to it, highlight. */
+export async function revealInTree(path) {
+  const segments = path.split('/').filter(s => s.length > 0);
+  if (segments.length === 0) return;
+
+  let container = $fileTree;
+
+  for (let i = 0; i < segments.length; i++) {
+    const currentPath = segments.slice(0, i + 1).join('/');
+    const isLast = (i === segments.length - 1);
+
+    // Find the matching tree-item in the current container's direct children
+    let item = null;
+    for (const el of container.children) {
+      if (el.classList.contains('tree-item') && el.dataset.path === currentPath) {
+        item = el;
+        break;
+      }
+    }
+
+    if (!item) return; // path not found in tree
+
+    if (isLast) {
+      // Target file: highlight and scroll into view
+      $fileTree.querySelectorAll('.tree-item.active').forEach(a => a.classList.remove('active'));
+      item.classList.add('active');
+      item.classList.add('tree-reveal');
+      item.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      setTimeout(() => item.classList.remove('tree-reveal'), 2000);
+      return;
+    }
+
+    // Directory: ensure loaded and expanded, then descend into children
+    const childContainer = item.nextElementSibling;
+    if (!childContainer || !childContainer.classList.contains('tree-children')) return;
+
+    if (!item.dataset.loaded) {
+      item.dataset.loaded = 'true';
+      const depth = Math.round((parseInt(item.style.paddingLeft, 10) - 8) / 16);
+      await loadDir(currentPath, childContainer, depth + 1);
+    }
+
+    childContainer.style.display = 'block';
+    const arrow = item.querySelector('.tree-toggle');
+    if (arrow) arrow.classList.add('expanded');
+    item.setAttribute('aria-expanded', 'true');
+
+    container = childContainer;
+  }
+}
+
 export async function loadFileTree() {
   $fileTree.innerHTML = '';
 

@@ -113,6 +113,9 @@ public class SettingsService {
     // Git polling settings
     defaults.put("git.pollInterval", 5);          // seconds: 3, 5, 10, or 30
 
+    // Tree settings
+    defaults.put("tree.syncWithEditor", true);    // reveal file in tree when opening from bookmark/tab
+
     // Debug settings
     defaults.put("debug.java.basePort", 5005);     // base JDWP port (auto-increments per session)
     defaults.put("debug.gdb.path", "gdb");         // path to GDB binary
@@ -131,6 +134,7 @@ public class SettingsService {
            "search.fuzzy.maxEdits", "search.suggest.limit",
            "git.diff.maxLines", "git.diff.defaultView", "git.diff.viewMode",
            "git.pollInterval",
+           "tree.syncWithEditor",
            "debug.java.basePort", "debug.gdb.path", "debug.gdb.mode",
            "debug.jdb.path", "debug.defaultStepMode" -> true;
       default -> false;

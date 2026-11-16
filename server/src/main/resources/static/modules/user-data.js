@@ -4,6 +4,8 @@ const $bookmarks = document.getElementById('bookmark-list');
 const $recent    = document.getElementById('recent-list');
 const $feedbackModal = document.getElementById('feedback-modal');
 
+let syncTreeWithEditor = true; // populated from settings on init
+
 function esc(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
 
 // ── Toast notification helper ──────────────────────────────
@@ -61,6 +63,9 @@ async function loadBookmarks() {
 
       el.addEventListener('click', () => {
         import('./tabs.js').then(m => m.openTab(b.path));
+        if (syncTreeWithEditor) {
+          import('./file-tree.js').then(m => m.revealInTree(b.path));
+        }
       });
 
       $bookmarks.appendChild(el);
@@ -341,6 +346,11 @@ async function showDirtyDiff(path) {
 // ── Init ───────────────────────────────────────────────────
 
 export function initUserData() {
+  // Load tree sync setting from backend
+  fetch('/api/settings').then(r => r.json()).then(s => {
+    syncTreeWithEditor = s['tree.syncWithEditor'] !== false; // default true
+  }).catch(() => {});
+
   // Bookmarks + Recent + Git Changes in sidebar (load on start)
   loadBookmarks();
   loadRecent();
