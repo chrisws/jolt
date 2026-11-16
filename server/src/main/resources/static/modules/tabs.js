@@ -1,6 +1,9 @@
 /* State */
 export const state = { tabs: [], activeTab: null };
 
+/* Sentinel ID for the singleton GIT tab */
+export const GIT_TAB_ID = '__git_tab__';
+
 /* DOM refs */
 const $tabBar  = document.getElementById('tab-bar');
 const $viewer  = document.getElementById('code-viewer');
@@ -20,6 +23,49 @@ function emptyState() {
     '</div></div>';
 }
 
+/** Open (or activate) the singleton GIT tab and set its view. */
+export function openGitTab(view, opts = {}) {
+  const { skipRender = false } = opts;
+  const existing = state.tabs.find(t => t.id === GIT_TAB_ID);
+  if (existing) {
+    existing.gitView = view;
+    if (skipRender) {
+      state.activeTab = GIT_TAB_ID;
+      renderTabs();
+    } else {
+      activateTab(GIT_TAB_ID);
+    }
+    return;
+  }
+  state.tabs.push({ id: GIT_TAB_ID, path: GIT_TAB_ID, name: 'Git', isGit: true, gitView: view });
+  if (skipRender) {
+    state.activeTab = GIT_TAB_ID;
+    renderTabs();
+  } else {
+    activateTab(GIT_TAB_ID);
+  }
+}
+
+/** Switch the active view of an already-open GIT tab. */
+export function setGitTabView(view) {
+  const tab = state.tabs.find(t => t.id === GIT_TAB_ID);
+  if (!tab) { openGitTab(view); return; }
+  tab.gitView = view;
+  if (state.activeTab === GIT_TAB_ID) {
+    renderGitView(view);
+  } else {
+    activateTab(GIT_TAB_ID);
+  }
+}
+
+function renderGitView(view) {
+  import('./git-pages.js').then(m => {
+    if (view === 'changes') m.renderGitChanges();
+    else if (view === 'commits') m.renderCommitList([]);
+    else m.renderGitStats(); // 'stats' or default
+  });
+}
+
 export function openTab(path) {
   const existing = state.tabs.find(t => t.path === path);
   if (existing) { activateTab(existing.id); return; }
@@ -31,12 +77,19 @@ export function openTab(path) {
 export function activateTab(id) {
   state.activeTab = id;
   renderTabs();
+  // Show/hide breadcrumb bar based on tab type
+  const $crumbBar = document.querySelector('.breadcrumb-bar');
+  const tab = state.tabs.find(t => t.id === id);
+  if ($crumbBar) { $crumbBar.style.display = (tab && tab.isGit) ? 'none' : ''; }
   // Notify nav-history and other listeners (avoids circular import)
   document.dispatchEvent(new CustomEvent('jolt:tab-activated', { detail: { path: id } }));
   // Lazy-import to avoid circular deps at load time
-  const tab = state.tabs.find(t => t.id === id);
   if (tab && tab.isDiff) {
     // Diff tabs render their own content via renderDirtyDiff (called by diff-panel.js)
+    return;
+  }
+  if (tab && tab.isGit) {
+    renderGitView(tab.gitView || 'stats');
     return;
   }
   import('./file-viewer.js').then(m => m.loadFile(id));
@@ -69,11 +122,13 @@ export function renderTabs() {
   for (const tab of state.tabs) {
     const isActive = tab.id === state.activeTab;
     const el = document.createElement('div');
-    el.className = 'tab' + (isActive ? ' active' : '') + (tab.isDiff ? ' diff-tab' : '');
+    el.className = 'tab' + (isActive ? ' active' : '') + (tab.isDiff ? ' diff-tab' : '') + (tab.isGit ? ' git-tab' : '');
     el.setAttribute('role', 'tab');
     el.setAttribute('aria-selected', isActive ? 'true' : 'false');
     el.setAttribute('tabindex', isActive ? '0' : '-1');
-    const icon = tab.isDiff ? '<span class="diff-tab-icon" aria-hidden="true">\u00B1</span>' : '';
+    let icon = '';
+    if (tab.isDiff) icon = '<span class="diff-tab-icon" aria-hidden="true">\u00B1</span>';
+    else if (tab.isGit) icon = '<span class="git-tab-icon" aria-hidden="true">\u{1F4CC}</span>';
     el.innerHTML = icon + '<span>' + esc(tab.name) + '</span><span class="close-btn" title="Close">&times;</span>';
     el.addEventListener('click', e => {
       if (e.target.classList.contains('close-btn')) closeTab(tab.id);

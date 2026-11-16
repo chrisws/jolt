@@ -84,25 +84,32 @@ function route() {
   closeSettings();
 
   if (parts[0] === 'git') {
-    // Hide file tree, show git content in main area
-    document.querySelector('.sidebar').style.display = 'none';
-    document.querySelector('.tab-bar').style.display = 'none';
-    document.querySelector('.breadcrumb').style.display = 'none';
+    // All git views are tabs — keep normal UI visible
+    document.querySelector('.sidebar').style.display = '';
+    document.querySelector('.tab-bar').style.display = '';
+    document.querySelector('.breadcrumb').style.display = '';
 
-    if (parts.length === 1) { renderGitStats(); }
-    else if (parts[1] === 'changes') { renderGitChanges(); }
-    else if (parts[1] === 'diff' && parts[2]) {
+    if (parts.length === 1 || parts[1] === 'stats') {
+      import('./tabs.js').then(m => m.openGitTab('stats'));
+      return;
+    } else if (parts[1] === 'changes') {
+      import('./tabs.js').then(m => m.openGitTab('changes'));
+      return;
+    } else if (parts[1] === 'commits' && parts[2]) {
+      // Commit detail — open GIT tab without auto-render, then render detail
+      import('./tabs.js').then(m => m.openGitTab('commits', { skipRender: true }));
+      renderCommitDetail(parts[2]);
+      return;
+    } else if (parts[1] === 'commits') {
+      import('./tabs.js').then(m => m.openGitTab('commits'));
+      return;
+    } else if (parts[1] === 'diff' && parts[2]) {
       // Route through diff-panel to respect user's mode preference
       const filePath = decodeURIComponent(parts.slice(2).join('/'));
       import('./diff-panel.js').then(m => m.openDiff(filePath));
-      // Restore normal UI (don't hide tabs/breadcrumb for diff)
-      document.querySelector('.sidebar').style.display = '';
-      document.querySelector('.tab-bar').style.display = '';
-      document.querySelector('.breadcrumb').style.display = '';
+    } else {
+      import('./tabs.js').then(m => m.openGitTab('stats'));
     }
-    else if (parts[1] === 'commits' && parts[2]) { renderCommitDetail(parts[2]); }
-    else if (parts[1] === 'commits') { renderCommitList(parts.slice(2)); }
-    else { renderGitStats(); }
   } else if (parts[0] === 'dashboard') {
     // Dashboard — hide sidebar, show stats in main area
     document.querySelector('.sidebar').style.display = 'none';

@@ -236,7 +236,7 @@ async function submitFeedback(e) {
 
 // ── Git Changes Section ────────────────────────────────────
 
-const $gitChanges = document.getElementById('git-changes-list');
+const $gitChanges = document.getElementById('git-status-list');
 
 async function loadGitChanges() {
   if (!$gitChanges) return;

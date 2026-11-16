@@ -91,7 +91,7 @@ export function initSidebar() {
   $sections.forEach((s, i) => { if (i > 0) { s.classList.add('collapsed'); s.querySelector('.section-label')?.classList.add('collapsed'); } });
 
   // ── Git Commits in sidebar ──
-  const $gitList = document.getElementById('git-changes-list');
+  const $gitList = document.getElementById('git-commits-list');
   if ($gitList) {
     loadSidebarCommits($gitList);
   }

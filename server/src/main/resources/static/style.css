@@ -917,6 +917,10 @@ kbd {
   margin-right: 4px;
 }
 
+.git-tab-icon {
+  margin-right: 4px;
+}
+
 /* ── Diff file link (in diff header) ────────────── */
 .diff-file-link {
   color: var(--accent, #58a6ff);
@@ -980,6 +984,17 @@ kbd {
   letter-spacing: 0.5px;
   color: var(--text-muted);
 }
+
+/* Sidebar navigation links (GIT section) */
+.sidebar-link {
+  display: block;
+  padding: var(--sp-1) var(--sp-3);
+  font-size: var(--fs-small);
+  color: var(--text);
+  text-decoration: none;
+}
+
+.sidebar-link:hover { background: var(--surface-2); }
 
 /* Bookmarks */
 .bookmark-item {
