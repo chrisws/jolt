@@ -7,10 +7,16 @@ function esc(s) {
 }
 
 async function loadSidebarCommits($gitList) {
+  // Show loading placeholder immediately
+  $gitList.insertAdjacentHTML('beforeend', '<div class="gc-loading" id="gc-loading"><span class="loading-spinner"></span> Loading…</div>');
+
   try {
     const res = await authFetch('/api/git/commits?page=0&size=10');
-    if (!res.ok) return;
+    if (!res.ok) { document.getElementById('gc-loading')?.remove(); return; }
     const data = await res.json();
+
+    // Remove loading placeholder
+    document.getElementById('gc-loading')?.remove();
 
     let html = '<div class="gc-commits-label">Recent Commits</div>';
 
@@ -64,10 +70,13 @@ async function loadSidebarCommits($gitList) {
           }
           page++;
           moreBtn.textContent = 'Load more…';
-        } catch (_) { moreBtn.textContent = 'Load more…'; }
+        } catch (_) { moreBtn.textContent = 'Load failed — retry'; }
       });
     }
-  } catch (_) {}
+  } catch (err) {
+    const el = document.getElementById('gc-list');
+    if (el) { el.innerHTML = '<div class="empty-state"><span>Git data unavailable</span></div>'; }
+  }
 }
 
 export function initSidebar() {

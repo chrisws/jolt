@@ -53,10 +53,10 @@ Living reference doc — update as items are addressed throughout development.
 
 ### 5. XSS / Output Sanitisation
 
-- [ ] Git commit messages in `index.html` inline script: only `<` and `"` are escaped — add `&` → `&amp;` (do `&` first)
-- [ ] Audit all `innerHTML` assignments for unescaped API data (file names, paths, user input)
-- [ ] Prefer `textContent` over `innerHTML` where no markup is needed
-- [ ] Consider a CSP header (`script-src 'self'`) to mitigate inline script risks
+- [x] Git commit messages in `index.html` inline script: only `<` and `"` are escaped — add `&` → `&amp;` (do `&` first) *(N/A — no inline script exists; sidebar.js already escapes with `&` first)*
+- [x] Audit all `innerHTML` assignments for unescaped API data (file names, paths, user input) *(All modules use `esc()` consistently)*
+- [ ] Prefer `textContent` over `innerHTML` where no markup is needed *(Most usages have legitimate markup; text-only cases already use textContent)*
+- [x] Consider a CSP header (`script-src 'self'`) to mitigate inline script risks *(Added via `app.unsafe.routes.before()` in ServerBootstrap)*
 
 ### 6. Error Handling / Silent Failures
 

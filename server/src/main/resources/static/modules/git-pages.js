@@ -45,7 +45,7 @@ async function loadBranches() {
       if (b.isCurrent) opt.selected = true;
       $sel.appendChild(opt);
     }
-  } catch (_) {}
+  } catch (_) { $sel.innerHTML = '<option>Unavailable</option>'; }
 }
 
 // Auto-load branches when git page renders
@@ -454,7 +454,10 @@ export async function renderHeatmap(year) {
       });
     });
 
-  } catch (err) { console.error('Heatmap failed:', err); }
+  } catch (err) {
+    console.error('Heatmap failed:', err);
+    container.innerHTML = '<div class="empty-state"><span>Activity data unavailable</span></div>';
+  }
 }
 
 /* ── Git Changes (Working Tree) ──────────────────── */

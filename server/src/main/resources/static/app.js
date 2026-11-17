@@ -87,6 +87,44 @@ initContextMenu();
 initNavHistory();
 initDiffPanel();
 
+// ── Index progress indicator ──────────────────────────────
+let _indexProgEl = null;
+
+function showIndexProgress(current, total, percent) {
+  if (!_indexProgEl) {
+    _indexProgEl = document.createElement('div');
+    _indexProgEl.id = 'jolt-index-progress';
+    Object.assign(_indexProgEl.style, {
+      position: 'fixed', bottom: '0', left: '0', right: '0', zIndex: '9998',
+      background: 'rgba(30,30,30,0.92)', color: '#ccc', fontSize: '12px',
+      padding: '4px 12px', display: 'flex', alignItems: 'center', gap: '10px'
+    });
+    const bar = document.createElement('div');
+    bar.id = 'jolt-index-bar';
+    Object.assign(bar.style, {
+      flex: '1', height: '4px', background: '#333', borderRadius: '2px', overflow: 'hidden'
+    });
+    const fill = document.createElement('div');
+    fill.id = 'jolt-index-fill';
+    Object.assign(fill.style, { height: '100%', width: '0%', background: '#4a9eff', transition: 'width 0.3s' });
+    bar.appendChild(fill);
+    const label = document.createElement('span');
+    label.id = 'jolt-index-label';
+    _indexProgEl.appendChild(bar);
+    _indexProgEl.appendChild(label);
+    document.body.appendChild(_indexProgEl);
+  }
+
+  const fill = document.getElementById('jolt-index-fill');
+  const label = document.getElementById('jolt-index-label');
+  if (fill) fill.style.width = percent + '%';
+  if (label) label.textContent = 'Indexing… ' + current + '/' + total + ' (' + percent + '%)';
+
+  if (percent >= 100) {
+    setTimeout(() => { if (_indexProgEl) { _indexProgEl.remove(); _indexProgEl = null; } }, 2500);
+  }
+}
+
 // ── Git status WebSocket ──────────────────────────────────
 (function initGitWs() {
   const ws = new WebSocket('ws://' + location.host + '/ws');
@@ -101,6 +139,8 @@ initDiffPanel();
       } else if (data.type === 'file_changed') {
         // File changed on disk — refresh tree markers too
         import('./modules/file-tree.js').then(m => m.markDirtyFiles());
+      } else if (data.type === 'index_progress') {
+        showIndexProgress(data.current, data.total, data.percent);
       }
     } catch (err) { console.debug('[WS] parse error:', err.message); }
   };
@@ -132,3 +172,31 @@ themeBtn.addEventListener('click', async () => {
   themeBtn.textContent = next === 'dark' ? '\u263D' : '\u2600';
   try { await fetch('/api/settings', { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({theme: next}) }); } catch {}
 });
+
+// ── Network offline / online banner ──────────────────────
+(function initNetworkBanner() {
+  let banner = null;
+
+  function showBanner() {
+    if (banner) return; // already visible
+    banner = document.createElement('div');
+    banner.id = 'jolt-network-banner';
+    banner.textContent = '\u26A0 Connection lost \u2014 retrying\u2026';
+    Object.assign(banner.style, {
+      position: 'fixed', top: '0', left: '0', right: '0', zIndex: '9999',
+      textAlign: 'center', padding: '6px 12px', fontSize: '13px', fontWeight: '600',
+      color: '#fff', background: '#c0392b', letterSpacing: '0.3px'
+    });
+    document.body.appendChild(banner);
+  }
+
+  function hideBanner() {
+    if (banner) { banner.remove(); banner = null; }
+  }
+
+  window.addEventListener('offline', showBanner);
+  window.addEventListener('online', hideBanner);
+
+  // If already offline on load, show immediately
+  if (!navigator.onLine) showBanner();
+})();

@@ -64,6 +64,12 @@ public final class ServerBootstrap {
 
     Javalin app = Javalin.create(cfg -> cfg.staticFiles.add("/static", Location.CLASSPATH));
 
+    // ─── Security headers ────────────────────────────────────
+    app.unsafe.routes.before(ctx -> ctx.header("Content-Security-Policy",
+        "default-src 'self'; script-src 'self' 'unsafe-inline'; "
+      + "style-src 'self' 'unsafe-inline'; connect-src 'self' ws://* wss://*; "
+      + "img-src 'self' data:; font-src 'self'"));
+
     // ─── Auth ────────────────────────────────────────────────
     AuthService authService = AuthConfig.register(app, readonly, host, port);
 
@@ -86,6 +92,7 @@ public final class ServerBootstrap {
     wsHub.register(app);
 
     ApiRoutes routes = new ApiRoutes(symbolTable, indexer, homeDir, callGraph, embedder, readonly);
+    routes.setWsHub(wsHub);
 
     SettingsService settingsService = new SettingsService(homeDir);
     DebugManager debugMgr = new DebugManager(homeDir, settingsService);
@@ -97,6 +104,12 @@ public final class ServerBootstrap {
     routes.setLintService(lintSvc);
 
     routes.register(app);
+
+    // ─── Catch-all exception handler ─────────────────────────
+    app.unsafe.routes.exception(Exception.class, (e, ctx) -> {
+      log.error("Unhandled exception: {}", e.getMessage(), e);
+      com.jolt.util.ApiError.send(ctx, 500, "INTERNAL", "Internal server error", e.getMessage());
+    });
 
     // ─── File watcher ────────────────────────────────────────
     FileWatcher fileWatcher = new FileWatcher(homeDir, 300L);

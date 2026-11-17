@@ -44,7 +44,7 @@ async function loadBookmarks() {
     $bookmarks.innerHTML = '';
 
     if (!items || items.length === 0) {
-      $bookmarks.innerHTML = '<div class="empty-hint">No bookmarks</div>';
+      $bookmarks.innerHTML = '<div class="empty-hint">No bookmarks — Ctrl+D to add</div>';
       console.log('[BOOKMARKS] loaded 0 items');
       return;
     }
@@ -304,7 +304,9 @@ async function loadGitChanges() {
 
       $gitChanges.appendChild(el);
     }
-  } catch (_) { /* not a git repo */ }
+  } catch (_) {
+    $gitChanges.innerHTML = '<div class="empty-state"><span>Git data unavailable</span></div>';
+  }
 }
 
 async function showDirtyDiff(path) {

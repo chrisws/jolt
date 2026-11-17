@@ -29,6 +29,7 @@ import com.jolt.nav.CallGraph;
 import com.jolt.nav.SymbolTable;
 import com.jolt.parse.FileWalker;
 import com.jolt.parse.JavaParser;
+import com.jolt.util.ApiError;
 import io.javalin.Javalin;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -61,10 +62,13 @@ public class ApiRoutes {
   private final RecentFilesService recentSvc;
   private DebugManager debugMgr; // nullable — set via setDebugManager()
   private com.jolt.lint.LintService lintSvc; // lazy-init
+  private WsHub wsHub; // nullable — set via setWsHub()
 
   public void setDebugManager(DebugManager mgr) { this.debugMgr = mgr; }
 
   public void setLintService(com.jolt.lint.LintService svc) { this.lintSvc = svc; }
+
+  public void setWsHub(WsHub hub) { this.wsHub = hub; }
 
   private final boolean readonly;
 
@@ -160,7 +164,7 @@ public class ApiRoutes {
         hits = indexer.search(q, kindFilter, maxResults, maxEdits, caseSensitive, wholeWord);
       } catch (Exception e) {
         log.error("Search failed: {}", e.getMessage());
-        ctx.status(500).json(Map.of("error", e.getMessage()));
+        ApiError.internal(ctx, e);
         return;
       }
 
@@ -195,7 +199,7 @@ public class ApiRoutes {
         ctx.json(hits);
       } catch (Exception e) {
         log.error("Suggest failed: {}", e.getMessage());
-        ctx.status(500).json(Map.of("error", e.getMessage()));
+        ApiError.internal(ctx, e);
       }
     });
 
@@ -204,10 +208,9 @@ public class ApiRoutes {
       if (q == null || q.isBlank()) { ctx.status(400).result("Missing 'q' parameter"); return; }
 
       if (embedder == null) {
-        ctx.status(503).json(Map.of(
-            "error", "Semantic search unavailable — embedding model not loaded",
-            "hint", "Place all-MiniLM-L6-v2.onnx in .jolt/models/"
-        ));
+        ApiError.send(ctx, 503, "UNAVAILABLE",
+            "Semantic search unavailable — embedding model not loaded",
+            "Place all-MiniLM-L6-v2.onnx in .jolt/models/");
         return;
       }
 
@@ -220,7 +223,7 @@ public class ApiRoutes {
         ctx.json(hits);
       } catch (Exception e) {
         log.error("Semantic search failed: {}", e.getMessage());
-        ctx.status(500).json(Map.of("error", e.getMessage()));
+        ApiError.internal(ctx, e);
       }
     });
   }
@@ -298,7 +301,7 @@ public class ApiRoutes {
         ctx.json(outline);
       } catch (Exception e) {
         log.error("File structure failed: {}", e.getMessage());
-        ctx.status(500).json(Map.of("error", e.getMessage()));
+        ApiError.internal(ctx, e);
       }
     });
 
@@ -328,7 +331,7 @@ public class ApiRoutes {
         ctx.json(entries);
       } catch (Exception e) {
         log.error("File tree failed for {}: {}", path, e.getMessage());
-        ctx.status(500).json(Map.of("error", e.getMessage()));
+        ApiError.internal(ctx, e);
       }
     });
   }
@@ -549,7 +552,7 @@ public class ApiRoutes {
         ctx.json(lines);
       } catch (IOException e) {
         log.error("Blame failed for {}: {}", path, e.getMessage());
-        ctx.status(500).json(Map.of("error", e.getMessage()));
+        ApiError.internal(ctx, e);
       }
     });
   }
@@ -738,7 +741,7 @@ public class ApiRoutes {
       if (message == null || message.isBlank()) { ctx.status(400).result("Missing 'message' field"); return; }
 
       String hash = gitSvc.commit(message, authorName, authorEmail);
-      if (hash == null) { ctx.status(500).json(Map.of("error", "Commit failed")); return; }
+      if (hash == null) { ApiError.send(ctx, 500, "INTERNAL", "Commit failed"); return; }
 
       audit.log("COMMIT", hash);
       ctx.json(Map.of("hash", hash));
@@ -797,14 +800,16 @@ public class ApiRoutes {
         Files.walk(joltDir, 3).filter(p -> p.toString().endsWith(".onnx"))
           .forEach(p -> models.add(joltDir.relativize(p).toString()));
         ctx.json(models);
-      } catch (Exception e) { ctx.status(500).json(Map.of("error", e.getMessage())); }
+      } catch (Exception e) { ApiError.internal(ctx, e); }
     });
 
     routes.post("/api/models/select", ctx -> {
       String file = ctx.body();
       if (file == null || file.isBlank()) { ctx.status(400).result("Missing model path"); return; }
       try {
-        Path modelPath = homeDir.resolve(".jolt").resolve(file);
+        Path joltBase = homeDir.resolve(".jolt").normalize();
+        Path modelPath = joltBase.resolve(file).normalize();
+        if (!modelPath.startsWith(joltBase)) { ctx.status(403).result("Access denied"); return; }
         if (!Files.exists(modelPath)) { ctx.status(404).json(Map.of("error", "File not found: " + file)); return; }
         if (embedder != null) embedder.close();
         this.embedder = new EmbeddingService(modelPath);
@@ -823,7 +828,7 @@ public class ApiRoutes {
         reindexThread.start();
 
         ctx.json(Map.of("model", file, "status", "loaded", "reindexing", true));
-      } catch (Exception e) { ctx.status(500).json(Map.of("error", e.getMessage())); }
+      } catch (Exception e) { ApiError.internal(ctx, e); }
     });
   }
 
@@ -852,7 +857,7 @@ public class ApiRoutes {
         ctx.status(201).json(bm);
       } catch (Exception e) {
         log.error("[BOOKMARKS] POST failed: {}", e.getMessage(), e);
-        ctx.status(500).json(Map.of("error", e.getMessage()));
+        ApiError.internal(ctx, e);
       }
     });
 
@@ -869,7 +874,7 @@ public class ApiRoutes {
         else { ctx.status(404).json(Map.of("ok", false)); }
       } catch (Exception e) {
         log.error("[BOOKMARKS] DELETE failed: {}", e.getMessage(), e);
-        ctx.status(500).json(Map.of("error", e.getMessage()));
+        ApiError.internal(ctx, e);
       }
     });
 
@@ -903,7 +908,7 @@ public class ApiRoutes {
 
       } catch (Exception e) {
         log.error("Feedback write failed: {}", e.getMessage());
-        ctx.status(500).json(Map.of("error", e.getMessage()));
+        ApiError.internal(ctx, e);
       }
     });
 
@@ -923,7 +928,7 @@ public class ApiRoutes {
 
       } catch (Exception e) {
         log.error("Feedback complete write failed: {}", e.getMessage());
-        ctx.status(500).json(Map.of("error", e.getMessage()));
+        ApiError.internal(ctx, e);
       }
     });
   }
@@ -945,7 +950,7 @@ public class ApiRoutes {
         ctx.json(updated);
       } catch (Exception e) {
         log.error("Settings update failed: {}", e.getMessage());
-        ctx.status(500).json(Map.of("error", e.getMessage()));
+        ApiError.internal(ctx, e);
       }
     });
 
@@ -980,7 +985,7 @@ public class ApiRoutes {
     var routes = app.unsafe.routes;
 
     routes.post("/api/debug/start", ctx -> {
-      if (debugMgr == null) { ctx.status(503).json(Map.of("error", "Debug not available")); return; }
+      if (debugMgr == null) { ApiError.unavailable(ctx, "Debug"); return; }
 
       Map<String, Object> body = ctx.bodyAsClass(Map.class);
       String language = body.getOrDefault("language", "java").toString();
@@ -999,7 +1004,7 @@ public class ApiRoutes {
         ctx.json(session.stateMap());
       } catch (Exception e) {
         log.error("Debug start failed: {}", e.getMessage(), e);
-        ctx.status(500).json(Map.of("error", e.getMessage()));
+        ApiError.internal(ctx, e);
       }
     });
   }
@@ -1008,7 +1013,7 @@ public class ApiRoutes {
     var routes = app.unsafe.routes;
 
     routes.post("/api/debug/breakpoint", ctx -> {
-      if (debugMgr == null) { ctx.status(503).json(Map.of("error", "Debug not available")); return; }
+      if (debugMgr == null) { ApiError.unavailable(ctx, "Debug"); return; }
 
       Map<String, Object> body = ctx.bodyAsClass(Map.class);
       String sessionId = body.getOrDefault("sessionId", "").toString();
@@ -1022,12 +1027,12 @@ public class ApiRoutes {
         boolean ok = session.setBreakpoint(filePath, line);
         ctx.json(Map.of("ok", ok, "breakpoints", session.breakpoints()));
       } catch (Exception e) {
-        ctx.status(500).json(Map.of("error", e.getMessage()));
+        ApiError.internal(ctx, e);
       }
     });
 
     routes.post("/api/debug/step", ctx -> {
-      if (debugMgr == null) { ctx.status(503).json(Map.of("error", "Debug not available")); return; }
+      if (debugMgr == null) { ApiError.unavailable(ctx, "Debug"); return; }
 
       Map<String, Object> body = ctx.bodyAsClass(Map.class);
       String sessionId = body.getOrDefault("sessionId", "").toString();
@@ -1044,12 +1049,12 @@ public class ApiRoutes {
         }
         ctx.json(Map.of("ok", true));
       } catch (Exception e) {
-        ctx.status(500).json(Map.of("error", e.getMessage()));
+        ApiError.internal(ctx, e);
       }
     });
 
     routes.post("/api/debug/continue", ctx -> {
-      if (debugMgr == null) { ctx.status(503).json(Map.of("error", "Debug not available")); return; }
+      if (debugMgr == null) { ApiError.unavailable(ctx, "Debug"); return; }
 
       String sessionId = ctx.bodyAsClass(Map.class).getOrDefault("sessionId", "").toString();
       DebugSession session = debugMgr.getSession(sessionId);
@@ -1059,12 +1064,12 @@ public class ApiRoutes {
         session.continueExecution();
         ctx.json(Map.of("ok", true));
       } catch (Exception e) {
-        ctx.status(500).json(Map.of("error", e.getMessage()));
+        ApiError.internal(ctx, e);
       }
     });
 
     routes.post("/api/debug/pause", ctx -> {
-      if (debugMgr == null) { ctx.status(503).json(Map.of("error", "Debug not available")); return; }
+      if (debugMgr == null) { ApiError.unavailable(ctx, "Debug"); return; }
 
       String sessionId = ctx.bodyAsClass(Map.class).getOrDefault("sessionId", "").toString();
       DebugSession session = debugMgr.getSession(sessionId);
@@ -1074,7 +1079,7 @@ public class ApiRoutes {
         session.pause();
         ctx.json(Map.of("ok", true));
       } catch (Exception e) {
-        ctx.status(500).json(Map.of("error", e.getMessage()));
+        ApiError.internal(ctx, e);
       }
     });
   }
@@ -1083,7 +1088,7 @@ public class ApiRoutes {
     var routes = app.unsafe.routes;
 
     routes.get("/api/debug/variables", ctx -> {
-      if (debugMgr == null) { ctx.status(503).json(Map.of("error", "Debug not available")); return; }
+      if (debugMgr == null) { ApiError.unavailable(ctx, "Debug"); return; }
 
       String sessionId = ctx.queryParam("sessionId");
       int frame = 0;
@@ -1095,12 +1100,12 @@ public class ApiRoutes {
       try {
         ctx.json(session.getVariables(frame));
       } catch (Exception e) {
-        ctx.status(500).json(Map.of("error", e.getMessage()));
+        ApiError.internal(ctx, e);
       }
     });
 
     routes.get("/api/debug/state", ctx -> {
-      if (debugMgr == null) { ctx.status(503).json(Map.of("error", "Debug not available")); return; }
+      if (debugMgr == null) { ApiError.unavailable(ctx, "Debug"); return; }
 
       String sessionId = ctx.queryParam("sessionId");
       DebugSession session = debugMgr.getSession(sessionId);
@@ -1110,7 +1115,7 @@ public class ApiRoutes {
     });
 
     routes.post("/api/debug/stop", ctx -> {
-      if (debugMgr == null) { ctx.status(503).json(Map.of("error", "Debug not available")); return; }
+      if (debugMgr == null) { ApiError.unavailable(ctx, "Debug"); return; }
 
       String sessionId = ctx.bodyAsClass(Map.class).getOrDefault("sessionId", "").toString();
       debugMgr.stopSession(sessionId);
@@ -1154,14 +1159,17 @@ public class ApiRoutes {
     log.info("Re-index starting under {}", homeDir);
 
     List<Path> javaFiles = FileWalker.findJavaFiles(homeDir);
-    log.info("Re-index: found {} Java files", javaFiles.size());
+    int total = javaFiles.size();
+    log.info("Re-index: found {} Java files", total);
+
+    broadcastIndexProgress(0, total, 0);
 
     JavaParser parser = new JavaParser();
     parser.setCallGraph(callGraph);
 
     List<ClassSymbol> allSymbols = new ArrayList<>();
 
-    for (int i = 0; i < javaFiles.size(); i++) {
+    for (int i = 0; i < total; i++) {
       Path file = javaFiles.get(i);
 
       List<ClassSymbol> symbols = parser.parse(file);
@@ -1178,15 +1186,27 @@ public class ApiRoutes {
         log.debug("Re-index: skipping raw index for {}: {}", relPath, e.getMessage());
       }
 
-      if ((i + 1) % 100 == 0) {
-        log.info("Re-index: {}/{} files", i + 1, javaFiles.size());
+      if ((i + 1) % 50 == 0 || (i + 1) == total) {
+        int pct = (int) ((i + 1) * 100L / total);
+        log.info("Re-index: {}/{} files ({}%)", i + 1, total, pct);
+        broadcastIndexProgress(i + 1, total, pct);
       }
     }
 
     symbolTable.addAll(allSymbols);
     indexer.commit();
 
+    broadcastIndexProgress(total, total, 100);
     log.info("Re-index complete: {} classes", allSymbols.size());
+  }
+
+  /** Push an index-progress message to all connected WS clients. */
+  private void broadcastIndexProgress(int current, int total, int percent) {
+    if (wsHub == null) return;
+    String msg = String.format(
+      "{\"type\":\"index_progress\",\"current\":%d,\"total\":%d,\"percent\":%d}",
+      current, total, percent);
+    wsHub.broadcast(msg);
   }
 
   private void registerLintRoutes(Javalin app) {
@@ -1203,7 +1223,7 @@ public class ApiRoutes {
       if (!Files.exists(filePath)) { ctx.status(404).result("File not found: " + path); return; }
       if (!Files.isRegularFile(filePath)) { ctx.status(400).result("Not a file: " + path); return; }
 
-      if (lintSvc == null) { ctx.status(503).result("Lint service not available"); return; }
+      if (lintSvc == null) { ApiError.unavailable(ctx, "Lint service"); return; }
 
       List<Problem> problems = lintSvc.lint(filePath);
       ctx.json(problems);
