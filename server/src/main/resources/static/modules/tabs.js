@@ -104,8 +104,10 @@ export function closeTab(id) {
     state.activeTab = next ? next.id : null;
   }
   renderTabs();
-  if (state.activeTab) { import('./file-viewer.js').then(m => m.loadFile(state.activeTab)); }
-  else { $viewer.innerHTML = emptyState(); $crumb.innerHTML = ''; }
+  if (state.activeTab) {
+    document.dispatchEvent(new CustomEvent('jolt:tab-activated', { detail: { path: state.activeTab } }));
+    import('./file-viewer.js').then(m => m.loadFile(state.activeTab));
+  } else { $viewer.innerHTML = emptyState(); $crumb.innerHTML = ''; }
 }
 
 export function closeAllTabs() {

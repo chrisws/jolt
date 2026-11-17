@@ -759,10 +759,10 @@ export async function renderDirtyDiff(path, target, options) {
   const opts = options || {};
 
   let html = '<div class="git-page">';
-  if (!opts.isPopup) {
-    html += '<div class="git-header"><h1>Working Tree Diff</h1><a href="#/git/changes" class="git-nav-link">&larr; Changes</a></div>';
-  } else {
+  if (opts.isPopup || opts.isTab) {
     html += '<div class="git-header"><h1>Working Tree Diff</h1></div>';
+  } else {
+    html += '<div class="git-header"><h1>Working Tree Diff</h1><a href="#/git/changes" class="git-nav-link">&larr; Changes</a></div>';
   }
   html += '<div class="commit-detail-header">';
   html += '<div class="cd-row"><strong class="diff-file-link" data-path="' + esc(path) + '" title="Open source file">' + esc(path) + '</strong></div>';

@@ -79,14 +79,14 @@ async function openDiffTab(path) {
     diffTab.name = path.split('/').pop() + ' (diff)';
     activateTab(diffTab.id);
     // Re-render with new path
-    import('./git-pages.js').then(m => m.renderDirtyDiff(path, document.getElementById('code-viewer')));
+    import('./git-pages.js').then(m => m.renderDirtyDiff(path, document.getElementById('code-viewer'), { isTab: true }));
   } else {
     // Create new diff tab
     const name = path.split('/').pop() + ' (diff)';
     const id = '__diff__';
     state.tabs.push({ id, path, name, isDiff: true });
     activateTab(id);
-    import('./git-pages.js').then(m => m.renderDirtyDiff(path, document.getElementById('code-viewer')));
+    import('./git-pages.js').then(m => m.renderDirtyDiff(path, document.getElementById('code-viewer'), { isTab: true }));
   }
 
   // Hide Blame/Link/Bookmark when diff tab is active
