@@ -273,6 +273,10 @@ grid-template-columns: var(--sidebar-width, 260px) 5px 1fr;
   overflow: hidden;
 }
 
+.main.lint-open {
+  grid-template-rows: auto auto auto 1fr;
+}
+
 /* ── Tab bar ───────────────────────────────── */
 .tab-bar {
   display: flex;
@@ -357,6 +361,7 @@ grid-template-columns: var(--sidebar-width, 260px) 5px 1fr;
 
 .code-line {
   display: flex;
+  position: relative;
 }
 
 .line-num {
@@ -809,6 +814,14 @@ kbd {
 .wt-diff-area { margin-top: var(--sp-3); background: var(--surface); border-radius: var(--radius); padding: var(--sp-2); min-height: 0; overflow-y: auto; max-height: 400px; }
 .wt-diff-area:not(:empty) { display: block; }
 .wt-actions { margin-top: var(--sp-2); }
+.wt-untracked-toggle { margin-top: var(--sp-2); font-size: var(--fs-small); color: var(--text-muted); cursor: pointer; background: none; border: none; padding: 0; }
+.wt-untracked-toggle:hover { color: var(--accent); }
+
+/* Commit section */
+.commit-textarea { width: 100%; min-height: 120px; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: var(--radius); font-family: var(--font-ui); font-size: var(--fs-base); padding: var(--sp-2) var(--sp-3); resize: vertical; margin-bottom: var(--sp-2); }
+.commit-author-row { display: flex; gap: var(--sp-2); margin-bottom: var(--sp-2); }
+.commit-author-row input { flex: 1; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: var(--radius); font-family: var(--font-ui); font-size: var(--fs-base); padding: var(--sp-1) var(--sp-2); }
+.commit-error { color: #ff6b6b; font-size: var(--fs-small); margin-bottom: var(--sp-2); display: none; }
 
 /* Raw view */
 .raw-view { font-family: var(--font-code); font-size: 12px; line-height: 1.5; }
@@ -1236,6 +1249,20 @@ kbd {
 .prob-warning .prob-msg { color: #e5c07b; }
 
 .problems-empty { padding: var(--sp-2) var(--sp-3); color: var(--text-muted); font-style: italic; }
+
+/* ── Lint gutter dots ─────────────────────────── */
+
+.lint-dot {
+  position: absolute;
+  left: 52px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 7px; height: 7px;
+  border-radius: 50%;
+}
+
+.lint-dot-error { background: #f48771; }
+.lint-dot-warning { background: #e5c07b; }
 
 .branch-select {
   background: var(--bg); color: var(--text); border: 1px solid var(--border);

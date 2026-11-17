@@ -62,7 +62,7 @@ export async function renderGitStats() {
     const s = await res.json();
 
     let html = '<div class="git-page">';
-    html += '<div class="git-header"><h1>Repository Stats</h1>' + renderBranchSelector() + '<a href="#/git/commits" class="git-nav-link">View Commits &rarr;</a></div>';
+    html += '<div class="git-header"><h1>Repository Stats</h1>' + renderBranchSelector() + '<a href="#/git/changes" class="git-nav-link">View Changes &rarr;</a></div>';
 
     html += '<div class="stats-grid">';
     html += statCard('Total Commits', s.totalCommits || 0);
@@ -144,7 +144,7 @@ export async function renderCommitList(params) {
       html += '<div class="pagination">';
       for (let p = 0; p < data.totalPages; p++) {
         if (p === page) html += '<span class="page-active">' + (p + 1) + '</span>';
-        else html += '<a href="#/git/commits/' + p + '" class="page-link">' + (p + 1) + '</a>';
+        else html += '<button class="page-link" data-page="' + p + '">' + (p + 1) + '</button>';
       }
       html += '</div>';
     }
@@ -164,6 +164,13 @@ export async function renderCommitList(params) {
 
       authFetch('/api/git/commits?' + qs.toString()).then(r => r.json()).then(d => {
         renderCommitListFiltered(d);
+      });
+    });
+
+    // Pagination buttons
+    $viewer.querySelectorAll('.page-link').forEach(btn => {
+      btn.addEventListener('click', () => {
+        renderCommitList([parseInt(btn.dataset.page)]);
       });
     });
 
@@ -463,7 +470,7 @@ export async function renderGitChanges() {
     const remotes = await remotesRes.json();
 
     let html = '<div class="git-page">';
-    html += '<div class="git-header"><h1>Changes</h1><a href="#/git" class="git-nav-link">&larr; Stats</a></div>';
+    html += '<div class="git-header"><h1>Changes</h1><a href="#/git/commits" class="git-nav-link">View Commits &rarr;</a></div>';
 
     // ── Working Tree Status ──
     html += '<div class="section-block"><h2>Working Tree</h2>';
@@ -493,15 +500,13 @@ export async function renderGitChanges() {
       }
 
       if (untracked.length > 0) {
-        html += '<div class="wt-group"><div class="wt-group-label">Untracked</div>';
+        html += '<button id="btn-toggle-untracked" class="wt-untracked-toggle">▸ Show ' + untracked.length + ' untracked file(s)</button>';
+        html += '<div id="untracked-group" style="display:none"><div class="wt-group"><div class="wt-group-label">Untracked</div>';
         for (const f of untracked) {
           html += wtFileRow(f.path, 'untracked');
         }
-        html += '</div>';
+        html += '</div></div>';
       }
-
-      // Diff display area
-      html += '<div id="wt-diff-area" class="wt-diff-area"></div>';
 
       // Stage All button
       html += '<div class="wt-actions"><button id="btn-stage-all" class="btn-small">Stage All</button></div>';
@@ -511,11 +516,12 @@ export async function renderGitChanges() {
 
     // ── Commit Section ──
     html += '<div class="section-block"><h2>Commit</h2>';
-    html += '<textarea id="commit-msg" rows="3" placeholder="Commit message…"></textarea>';
+    html += '<textarea id="commit-msg" class="commit-textarea" rows="6" placeholder="Commit message…"></textarea>';
     html += '<div class="commit-author-row">';
-    html += '<input type="text" id="commit-author-name" placeholder="Author name (optional)">';
-    html += '<input type="text" id="commit-author-email" placeholder="Author email (optional)">';
+    html += '<input type="text" id="commit-author-name" placeholder="Author name">';
+    html += '<input type="text" id="commit-author-email" placeholder="Author email">';
     html += '</div>';
+    html += '<div id="commit-error" class="commit-error"></div>';
     html += '<button id="btn-commit" class="btn-primary">Commit</button>';
     html += '</div>';
 
@@ -540,13 +546,31 @@ export async function renderGitChanges() {
     html += '</div>';
     $viewer.innerHTML = html;
 
+    // ── Prime commit author from git config ──
+    authFetch('/api/git/config').then(r => {
+      console.log('[git-pages] /api/git/config response status:', r.status);
+      return r.json();
+    }).then(cfg => {
+      console.log('[git-pages] config received:', JSON.stringify(cfg));
+      const $name = document.getElementById('commit-author-name');
+      const $email = document.getElementById('commit-author-email');
+      console.log('[git-pages] DOM elements: name=', !!$name, ' email=', !!$email);
+      if ($name && cfg.name) { $name.value = cfg.name; console.log('[git-pages] set name:', cfg.name); }
+      if ($email && cfg.email) { $email.value = cfg.email; console.log('[git-pages] set email:', cfg.email); }
+    }).catch(err => {
+      console.error('[git-pages] config fetch failed:', err);
+    });
+
     // ── Event Listeners ──
 
-    // Click row → show dirty diff
+    // Click row → open in regular file tab
     document.querySelectorAll('.wt-file-row').forEach(row => {
-      row.addEventListener('click', (e) => {
+      row.addEventListener('click', async (e) => {
         if (e.target.closest('.wt-stage-btn') || e.target.closest('.wt-open-btn')) return;
-        showDirtyDiff(row.dataset.path);
+        const { openTab } = await import('./tabs.js');
+        openTab(row.dataset.path);
+        history.pushState(null, '', location.pathname + location.search);
+        window.dispatchEvent(new HashChangeEvent('hashchange'));
       });
     });
 
@@ -577,11 +601,26 @@ export async function renderGitChanges() {
       });
     });
 
-    // Stage All
+    // Toggle untracked visibility
+    const $toggleUntracked = document.getElementById('btn-toggle-untracked');
+    if ($toggleUntracked) {
+      $toggleUntracked.addEventListener('click', () => {
+        const group = document.getElementById('untracked-group');
+        if (!group) return;
+        const hidden = group.style.display === 'none';
+        group.style.display = hidden ? '' : 'none';
+        $toggleUntracked.textContent = hidden ? '▾ Hide untracked files' : '▸ Show untracked files';
+      });
+    }
+
+    // Stage All (respects untracked visibility)
     const $stageAll = document.getElementById('btn-stage-all');
     if ($stageAll) {
       $stageAll.addEventListener('click', async () => {
-        const res = await authFetch('/api/git/stage-all', { method: 'POST' });
+        const untrackedGroup = document.getElementById('untracked-group');
+        const untrackedHidden = !untrackedGroup || untrackedGroup.style.display === 'none';
+        const url = untrackedHidden ? '/api/git/stage-all?trackedOnly=true' : '/api/git/stage-all';
+        const res = await authFetch(url, { method: 'POST' });
         if (res.ok) renderGitChanges(); // refresh to show updated state
       });
     }
@@ -590,11 +629,20 @@ export async function renderGitChanges() {
     const $commitBtn = document.getElementById('btn-commit');
     if ($commitBtn) {
       $commitBtn.addEventListener('click', async () => {
+        const $err = document.getElementById('commit-error');
         const message = document.getElementById('commit-msg').value.trim();
-        if (!message) { alert('Please enter a commit message.'); return; }
+        const authorName = document.getElementById('commit-author-name').value.trim();
+        const authorEmail = document.getElementById('commit-author-email').value.trim();
 
-        const authorName = document.getElementById('commit-author-name').value.trim() || null;
-        const authorEmail = document.getElementById('commit-author-email').value.trim() || null;
+        if (!message || !authorName || !authorEmail) {
+          const missing = [];
+          if (!message) missing.push('message');
+          if (!authorName) missing.push('author name');
+          if (!authorEmail) missing.push('author email');
+          if ($err) { $err.textContent = 'Please fill in: ' + missing.join(', '); $err.style.display = 'block'; }
+          return;
+        }
+        if ($err) { $err.style.display = 'none'; }
 
         $commitBtn.disabled = true;
         $commitBtn.textContent = 'Committing…';
@@ -704,33 +752,6 @@ function wtFileRow(path, type) {
   html += '</div>';
 
   return html;
-}
-
-async function showDirtyDiff(path) {
-  const area = document.getElementById('wt-diff-area');
-  if (!area) return;
-  area.innerHTML = '<div class="loading">Loading diff…</div>';
-  try {
-    const res = await authFetch('/api/git/dirty-diff?path=' + encodeURIComponent(path));
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    const text = await res.text();
-    if (!text.trim()) { area.innerHTML = '<div class="empty-state"><span>No changes</span></div>'; return; }
-    const lines = text.split('\n');
-    let html = '<div class="diff-file-header">' + esc(path) + '</div><div class="diff-body">';
-    for (const line of lines) {
-      let cls = 'diff-ctx'; let prefix = ' ';
-      if (line.startsWith('+')) { cls = 'diff-add'; prefix = '+'; }
-      else if (line.startsWith('-')) { cls = 'diff-del'; prefix = '-'; }
-      else if (line.startsWith('@@')) { cls = 'diff-hunk'; prefix = '@@'; }
-      else if (line.startsWith('---') || line.startsWith('+++')) { cls = 'diff-meta'; prefix = line[0]; }
-      const content = line.length > 1 ? line.substring(1) : '';
-      html += '<div class="diff-line ' + cls + '"><span class="diff-prefix">' + esc(prefix) + '</span><span class="diff-text">' + esc(content) + '</span></div>';
-    }
-    html += '</div>';
-    area.innerHTML = html;
-  } catch (err) {
-    area.innerHTML = '<div class="empty-state"><span>Failed: ' + esc(err.message) + '</span></div>';
-  }
 }
 
 export async function renderDirtyDiff(path, target, options) {

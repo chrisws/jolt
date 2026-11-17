@@ -290,6 +290,43 @@ public class GitService {
     }
   }
 
+  /** Get git user config (name and email). Falls back to last commit author if not in config. */
+  public Map<String, String> gitUserConfig() {
+    String name = runGitConfig("user.name");
+    String email = runGitConfig("user.email");
+
+    // Fallback: read author from most recent commit
+    if (name.isEmpty() || email.isEmpty()) {
+      try (Git git = Git.open(homeDir.toFile())) {
+        var lastCommit = git.log().setMaxCount(1).call().iterator().next();
+        var author = lastCommit.getAuthorIdent();
+        if (name.isEmpty()) name = author.getName();
+        if (email.isEmpty()) email = author.getEmailAddress();
+        log.info("[GIT] gitUserConfig fallback from last commit: name='{}', email='{}'", name, email);
+      } catch (Exception e) {
+        log.debug("[GIT] No commits to read author from: {}", e.getMessage());
+      }
+    }
+
+    log.info("[GIT] gitUserConfig: name='{}', email='{}', homeDir={}", name, email, homeDir);
+    return Map.of("name", name, "email", email);
+  }
+
+  private String runGitConfig(String key) {
+    try {
+      var proc = new ProcessBuilder("git", "config", key)
+          .directory(homeDir.toFile())
+          .redirectErrorStream(true)
+          .start();
+      var output = new String(proc.getInputStream().readAllBytes()).trim();
+      proc.waitFor();
+      return output;
+    } catch (Exception e) {
+      log.debug("[GIT] git config {} failed: {}", key, e.getMessage());
+      return "";
+    }
+  }
+
   /** Expose the home directory for use by other services. */
   public Path getHomeDir() { return homeDir; }
 
@@ -906,6 +943,18 @@ public class GitService {
       return true;
     } catch (Exception e) {
       log.error("[GIT] Failed to stage all: {}", e.getMessage());
+      return false;
+    }
+  }
+
+  /** Stage only tracked changes (equivalent to `git add -u`). Excludes untracked files. */
+  public boolean stageAllTracked() {
+    try (Git git = Git.open(homeDir.toFile())) {
+      git.add().setUpdate(true).call();
+      log.info("[GIT] Staged all tracked files");
+      return true;
+    } catch (Exception e) {
+      log.error("[GIT] Failed to stage tracked files: {}", e.getMessage());
       return false;
     }
   }

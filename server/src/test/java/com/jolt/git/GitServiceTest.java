@@ -107,6 +107,34 @@ class GitServiceTest {
   }
 
   @Test
+  void gitUserConfig_returnsConfiguredValues() throws Exception {
+    git.getRepository().getConfig().setString("user", null, "name", "Test User");
+    git.getRepository().getConfig().setString("user", null, "email", "test@example.com");
+    git.getRepository().getConfig().save();
+
+    Map<String, String> config = service.gitUserConfig();
+    assertEquals("Test User", config.get("name"));
+    assertEquals("test@example.com", config.get("email"));
+  }
+
+  @Test
+  void gitUserConfig_returnsEmptyWhenNotSet() throws Exception {
+    // Use a fresh repo with no user config
+    Path freshDir = tempDir.resolve("fresh-repo");
+    Git freshGit = Git.init().setDirectory(freshDir.toFile()).call();
+    // Remove any inherited config by setting empty values in local config
+    freshGit.getRepository().getConfig().setString("user", null, "name", "");
+    freshGit.getRepository().getConfig().setString("user", null, "email", "");
+    freshGit.getRepository().getConfig().save();
+
+    GitService freshService = new GitService(freshDir);
+    Map<String, String> config = freshService.gitUserConfig();
+    // Should return empty strings (not null)
+    assertNotNull(config.get("name"));
+    assertNotNull(config.get("email"));
+  }
+
+  @Test
   void log_returnsAllCommits() {
     List<Map<String, Object>> commits = service.log(10, null, null);
     assertEquals(2, commits.size());

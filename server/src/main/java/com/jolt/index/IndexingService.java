@@ -25,6 +25,7 @@ import com.jolt.parse.CompileDb;
 import com.jolt.parse.CppParser;
 import com.jolt.parse.FileWalker;
 import com.jolt.parse.JavaParser;
+import com.jolt.parse.JsParser;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -51,6 +52,7 @@ public final class IndexingService {
     try {
       indexJava(homeDir, symbolTable, indexer, callGraph);
       indexCpp(homeDir, symbolTable, indexer);
+      indexJs(homeDir, symbolTable, indexer);
 
       indexer.commit();
       log.info("Indexing complete: {} classes, {} call edges", symbolTable.size(), callGraph.size());
@@ -129,5 +131,33 @@ public final class IndexingService {
 
     table.addAll(allSymbols);
     log.info("Indexed {} C/C++ symbols", count);
+  }
+
+  private static void indexJs(Path homeDir, SymbolTable table, LuceneIndexer indexer) throws Exception {
+    List<Path> jsFiles = FileWalker.findJsFiles(homeDir);
+    if (jsFiles.isEmpty()) return;
+
+    log.info("Found {} JS/TS files under {}", jsFiles.size(), homeDir);
+
+    JsParser parser = new JsParser();
+    List<ClassSymbol> allSymbols = new ArrayList<>();
+
+    for (Path file : jsFiles) {
+      List<ClassSymbol> symbols = parser.parse(file);
+      for (ClassSymbol cs : symbols) {
+        allSymbols.add(cs);
+        indexer.indexClass(cs);
+      }
+
+      String relPath = homeDir.relativize(file).toString();
+      try {
+        indexer.indexFile(relPath, Files.readString(file));
+      } catch (Exception e) {
+        log.debug("Skipping raw index for {}: {}", relPath, e.getMessage());
+      }
+    }
+
+    table.addAll(allSymbols);
+    log.info("Indexed {} JS/TS symbols", allSymbols.size());
   }
 }

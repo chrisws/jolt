@@ -67,7 +67,7 @@ function renderGitView(view) {
 }
 
 export function openTab(path) {
-  const existing = state.tabs.find(t => t.path === path);
+  const existing = state.tabs.find(t => t.path === path && !t.isDiff);
   if (existing) { activateTab(existing.id); return; }
   const name = path.split('/').pop();
   state.tabs.push({ id: path, path, name });
@@ -148,20 +148,21 @@ export function renderTabs() {
     $tabBar.appendChild(homeBtn);
   }
 
-  // Arrow key navigation within tab bar (roving tabindex)
-  $tabBar.addEventListener('keydown', e => {
-    const tabs = Array.from($tabBar.querySelectorAll('.tab'));
-    const idx = tabs.findIndex(t => t.getAttribute('tabindex') === '0');
-    if (idx === -1) return;
-    let next = -1;
-    if (e.key === 'ArrowRight') next = (idx + 1) % tabs.length;
-    else if (e.key === 'ArrowLeft') next = (idx - 1 + tabs.length) % tabs.length;
-    else return;
-    e.preventDefault();
-    tabs[idx].setAttribute('tabindex', '-1');
-    tabs[next].setAttribute('tabindex', '0');
-    tabs[next].focus();
-  });
 }
+
+/* Arrow key navigation within tab bar (roving tabindex) — registered once */
+$tabBar.addEventListener('keydown', e => {
+  const tabs = Array.from($tabBar.querySelectorAll('.tab'));
+  const idx = tabs.findIndex(t => t.getAttribute('tabindex') === '0');
+  if (idx === -1) return;
+  let next = -1;
+  if (e.key === 'ArrowRight') next = (idx + 1) % tabs.length;
+  else if (e.key === 'ArrowLeft') next = (idx - 1 + tabs.length) % tabs.length;
+  else return;
+  e.preventDefault();
+  tabs[idx].setAttribute('tabindex', '-1');
+  tabs[next].setAttribute('tabindex', '0');
+  tabs[next].focus();
+});
 
 export function showEmptyState() { $viewer.innerHTML = emptyState(); $crumb.innerHTML = ''; }

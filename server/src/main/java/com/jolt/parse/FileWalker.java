@@ -41,6 +41,12 @@ public final class FileWalker {
     return walk(root, p -> { for (var x : exts) if (p.toString().endsWith(x)) return true; return false; });
   }
 
+  /** Find JavaScript/TypeScript source files. */
+  public static List<Path> findJsFiles(Path root) throws IOException {
+    var exts = List.of(".js", ".ts", ".jsx", ".tsx");
+    return walk(root, p -> { for (var x : exts) if (p.toString().endsWith(x)) return true; return false; });
+  }
+
   private static List<Path> walk(Path r, java.util.function.Predicate<Path> f) throws IOException {
     var o = new ArrayList<Path>();
     Files.walkFileTree(r, new SimpleFileVisitor<>() {

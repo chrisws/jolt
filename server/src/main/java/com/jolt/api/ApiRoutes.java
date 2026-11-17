@@ -614,6 +614,11 @@ public class ApiRoutes {
       ctx.json(status);
     });
 
+    routes.get("/api/git/config", ctx -> {
+      Map<String, String> config = gitSvc.gitUserConfig();
+      ctx.json(config);
+    });
+
     routes.get("/api/git/dirty-diff", ctx -> {
       String path = ctx.queryParam("path");
       if (path == null || path.isBlank()) { ctx.status(400).result("Missing 'path' parameter"); return; }
@@ -705,8 +710,9 @@ public class ApiRoutes {
     var audit = new GitAuditLog(homeDir);
 
     routes.post("/api/git/stage-all", ctx -> {
-      boolean ok = gitSvc.stageAll();
-      if (ok) audit.log("STAGE_ALL", null);
+      boolean trackedOnly = "true".equals(ctx.queryParam("trackedOnly"));
+      boolean ok = trackedOnly ? gitSvc.stageAllTracked() : gitSvc.stageAll();
+      if (ok) audit.log(trackedOnly ? "STAGE_ALL_TRACKED" : "STAGE_ALL", null);
       ctx.status(ok ? 200 : 500).json(Map.of("ok", ok));
     });
 

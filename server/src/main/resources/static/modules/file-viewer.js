@@ -1,3 +1,5 @@
+import { authFetch } from './url-utils.js';
+
 const $viewer  = document.getElementById('code-viewer');
 const $crumb   = document.getElementById('breadcrumb');
 
@@ -25,6 +27,7 @@ export async function loadFile(path) {
     }
 
     renderBreadcrumb(path);
+    updateLintButtonVisibility(path);
 
     // Click line number → report issue with that code line (raw mode only)
     $viewer.querySelectorAll('.line-num').forEach(el => {
@@ -182,28 +185,42 @@ function removeBlameGutter() {
 
 let lintActive = false;
 
+const LINTABLE_EXTS = ['.java', '.cpp', '.cc', '.cxx', '.c', '.h', '.hpp', '.hxx'];
+
+function updateLintButtonVisibility(path) {
+  const $btn = document.getElementById('lint-btn');
+  if (!$btn) return;
+  const isLintable = LINTABLE_EXTS.some(ext => path.toLowerCase().endsWith(ext));
+  $btn.style.display = isLintable ? '' : 'none';
+}
+
 export async function toggleLint(filePath) {
   const $panel = document.getElementById('problems-panel');
   const $btn = document.getElementById('lint-btn');
+  const $main = document.getElementById('main-content');
 
   if (lintActive) {
     lintActive = false;
     if ($panel) $panel.style.display = 'none';
     if ($btn) $btn.classList.remove('active');
+    if ($main) $main.classList.remove('lint-open');
+    removeGutterDots();
     return;
   }
 
   if ($btn) $btn.classList.add('active');
 
   try {
-    const res = await fetch('/api/file/lint?path=' + encodeURIComponent(filePath));
+    const res = await authFetch('/api/file/lint?path=' + encodeURIComponent(filePath));
     if (!res.ok) throw new Error('HTTP ' + res.status);
     const problems = await res.json();
 
     lintActive = true;
     renderProblems(problems);
+    addGutterDots(problems);
 
     if ($panel) $panel.style.display = '';
+    if ($main) $main.classList.add('lint-open');
   } catch (err) {
     console.error('Lint failed:', err);
     lintActive = false;
@@ -243,12 +260,37 @@ function renderProblems(problems) {
   });
 }
 
+function addGutterDots(problems) {
+  removeGutterDots(); // clear any existing dots first
+  const lineMap = {}; // line → worst severity
+  for (const p of problems) {
+    const prev = lineMap[p.line];
+    if (p.severity === 'ERROR' || !prev) lineMap[p.line] = p.severity;
+  }
+
+  for (const [line, severity] of Object.entries(lineMap)) {
+    const el = $viewer.querySelector('.code-line[data-line="' + line + '"]');
+    if (!el) continue;
+    const dot = document.createElement('span');
+    dot.className = 'lint-dot ' + (severity === 'ERROR' ? 'lint-dot-error' : 'lint-dot-warning');
+    const $num = el.querySelector('.line-num');
+    if ($num) $num.after(dot); else el.prepend(dot);
+  }
+}
+
+function removeGutterDots() {
+  $viewer.querySelectorAll('.lint-dot').forEach(el => el.remove());
+}
+
 export function clearProblems() {
   lintActive = false;
   const $panel = document.getElementById('problems-panel');
   const $btn = document.getElementById('lint-btn');
+  const $main = document.getElementById('main-content');
   if ($panel) $panel.style.display = 'none';
   if ($btn) $btn.classList.remove('active');
+  if ($main) $main.classList.remove('lint-open');
+  removeGutterDots();
 }
 
 /* ── Go to Line ──────────────────────────────────── */

@@ -94,7 +94,7 @@ async function openDiffTab(path) {
 }
 
 function setBreadcrumbButtonsHidden(hidden) {
-  const btns = ['blame-toggle', 'copy-link-btn', 'bookmark-btn'];
+  const btns = ['blame-toggle', 'copy-link-btn', 'bookmark-btn', 'lint-btn'];
   btns.forEach(id => {
     const el = document.getElementById(id);
     if (el) el.style.display = hidden ? 'none' : '';

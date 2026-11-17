@@ -291,7 +291,7 @@ async function loadGitChanges() {
 
       el.addEventListener('click', (ev) => {
         if (ev.target.classList.contains('gc-add-btn')) return;
-        showDirtyDiff(p);
+        import('./tabs.js').then(m => m.openTab(p));
       });
 
       if (type === 'untracked') {
