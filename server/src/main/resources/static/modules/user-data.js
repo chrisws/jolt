@@ -202,6 +202,7 @@ function openFeedback(filePath, line) {
 
   const $msgField = document.getElementById('fb-message');
   if ($msgField) $msgField.focus();
+  setupFeedbackFocusTrap();
 }
 
 /** Open feedback pre-filled for a specific code line. */
@@ -211,11 +212,47 @@ export function reportCodeIssue(filePath, line) {
 
 function closeFeedback() {
   $feedbackModal.classList.remove('open');
+  teardownFeedbackFocusTrap();
 
   const $fileField = document.getElementById('fb-file');
   const $msgField = document.getElementById('fb-message');
   if ($fileField) $fileField.value = '';
   if ($msgField) $msgField.value = '';
+}
+
+// ── Focus trap for feedback modal ──────────────────────
+let _fbTrapHandler = null;
+
+function setupFeedbackFocusTrap() {
+  _fbTrapHandler = e => {
+    if (e.key !== 'Tab') return;
+    const dialog = $feedbackModal.querySelector('.modal-content');
+    if (!dialog) return;
+    const focusable = dialog.querySelectorAll('input, button, textarea, select, [tabindex]:not([tabindex="-1"])');
+    if (focusable.length === 0) return;
+
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+
+    if (e.shiftKey && document.activeElement === first) {
+      e.preventDefault();
+      last.focus();
+    } else if (!e.shiftKey && document.activeElement === last) {
+      e.preventDefault();
+      first.focus();
+    } else if (!dialog.contains(document.activeElement)) {
+      e.preventDefault();
+      first.focus();
+    }
+  };
+  document.addEventListener('keydown', _fbTrapHandler);
+}
+
+function teardownFeedbackFocusTrap() {
+  if (_fbTrapHandler) {
+    document.removeEventListener('keydown', _fbTrapHandler);
+    _fbTrapHandler = null;
+  }
 }
 
 async function submitFeedback(e) {

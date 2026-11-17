@@ -7,6 +7,31 @@ export function setFocusReturn(el) { _focusReturnTarget = el; }
 export function getFocusReturn() { return _focusReturnTarget; }
 export function clearFocusReturn() { _focusReturnTarget = null; }
 
+/** Focus the first focusable element inside a container. */
+export function focusFirstIn(container) {
+  const sel = 'input, select, textarea, button, [tabindex]:not([tabindex="-1"])';
+  const el = container.querySelector(sel);
+  if (el) el.focus();
+  else if (container) container.focus();
+}
+
+/** Standard panel-open: remove inert, show, set aria-hidden false, focus inside. */
+export function openPanelWithFocus(panel, triggerEl) {
+  panel.removeAttribute('inert');
+  panel.setAttribute('aria-hidden', 'false');
+  panel.classList.add('open');
+  if (triggerEl) setFocusReturn(triggerEl);
+  focusFirstIn(panel);
+}
+
+/** Standard panel-close: hide, set inert + aria-hidden, restore focus. */
+export function closePanelWithFocus(panel) {
+  panel.classList.remove('open');
+  panel.setAttribute('aria-hidden', 'true');
+  panel.setAttribute('inert', '');
+  restoreFocus();
+}
+
 /** Close the topmost open UI element (modal > panel > dropdown). */
 export function closeTopmost() {
   // 1. Modals (highest priority)

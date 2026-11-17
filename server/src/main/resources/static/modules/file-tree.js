@@ -223,6 +223,74 @@ export async function loadFileTree() {
 
   await loadDir('', $fileTree, 0);
   markDirtyFiles();
+
+  // ── Keyboard navigation ──────────────────────────
+  $fileTree.addEventListener('keydown', (e) => {
+    const items = Array.from($fileTree.querySelectorAll('.tree-item[tabindex]'));
+    if (items.length === 0) return;
+    const idx = items.findIndex(el => el === document.activeElement);
+
+    switch (e.key) {
+      case 'ArrowDown': {
+        e.preventDefault();
+        const next = items[idx + 1] || items[0];
+        items.forEach(el => el.setAttribute('tabindex', '-1'));
+        next.setAttribute('tabindex', '0');
+        next.focus();
+        break;
+      }
+      case 'ArrowUp': {
+        e.preventDefault();
+        const prev = items[idx - 1] || items[items.length - 1];
+        items.forEach(el => el.setAttribute('tabindex', '-1'));
+        prev.setAttribute('tabindex', '0');
+        prev.focus();
+        break;
+      }
+      case 'ArrowRight': {
+        e.preventDefault();
+        const el = document.activeElement;
+        if (el && el.classList.contains('tree-item') && el.getAttribute('aria-expanded') === 'false') {
+          el.click(); // expand directory
+          el.setAttribute('aria-expanded', 'true');
+        } else if (el && el.classList.contains('tree-item')) {
+          // Move to first child if expanded
+          const child = el.nextElementSibling;
+          if (child && child.classList.contains('tree-children')) {
+            const firstChild = child.querySelector('.tree-item');
+            if (firstChild) { firstChild.setAttribute('tabindex', '0'); firstChild.focus(); }
+          }
+        }
+        break;
+      }
+      case 'ArrowLeft': {
+        e.preventDefault();
+        const el = document.activeElement;
+        if (el && el.classList.contains('tree-item') && el.getAttribute('aria-expanded') === 'true') {
+          el.click(); // collapse directory
+          el.setAttribute('aria-expanded', 'false');
+        } else if (el && el.classList.contains('tree-item')) {
+          // Move to parent (find previous item with less padding)
+          const pad = parseInt(el.style.paddingLeft) || 8;
+          for (let i = idx - 1; i >= 0; i--) {
+            const pPad = parseInt(items[i].style.paddingLeft) || 8;
+            if (pPad < pad) { items.forEach(x => x.setAttribute('tabindex', '-1')); items[i].setAttribute('tabindex', '0'); items[i].focus(); break; }
+          }
+        }
+        break;
+      }
+      case 'Enter': {
+        e.preventDefault();
+        const el = document.activeElement;
+        if (el && el.classList.contains('tree-item')) el.click();
+        break;
+      }
+    }
+  });
+
+  // Set initial tabindex on first item for keyboard access
+  const firstItem = $fileTree.querySelector('.tree-item');
+  if (firstItem) firstItem.setAttribute('tabindex', '0');
 }
 
 /** Fetch git status and mark dirty files in the tree with a dot indicator. */

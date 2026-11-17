@@ -17,6 +17,7 @@ let abortController = null;  // cancel in-flight searches
 function esc(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
 
 import { buildSearchUrl } from './url-utils.js';
+import { openPanelWithFocus, closePanelWithFocus } from './focus-manager.js';
 
 async function doSearch(query) {
   if (!query || query.length < 2) return;
@@ -27,7 +28,7 @@ async function doSearch(query) {
 
   // Show searching indicator
   $searchRes.innerHTML = '<div class="empty-state"><span>Searching…</span></div>';
-  $searchPanel.classList.add('open');
+  openPanelWithFocus($searchPanel, $searchInput);
 
   try {
     const url = buildSearchUrl(query, { semantic: semanticMode, caseSensitive, wholeWord });
@@ -59,7 +60,7 @@ async function doSearch(query) {
   }
 }
 
-export function closeSearch() { $searchPanel.classList.remove('open'); }
+export function closeSearch() { closePanelWithFocus($searchPanel); }
 
 async function doSuggest(query) {
   if (!query || query.length < 2) { closeSuggest(); return; }

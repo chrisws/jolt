@@ -130,6 +130,23 @@ public class ApiRoutes {
       Map<String, Object> dash = dashboard.buildDashboard(classes, methods, classes);
       ctx.json(dash);
     });
+
+    routes.get("/api/health", ctx -> {
+      Map<String, Object> health = new LinkedHashMap<>();
+      health.put("status", "ok");
+      health.put("indexOpen", indexer.isOpen());
+      health.put("gitAccessible", gitSvc.isAvailable());
+      health.put("timestamp", System.currentTimeMillis());
+      ctx.json(health);
+    });
+
+    routes.get("/api/index/stats", ctx -> {
+      Map<String, Object> stats = new LinkedHashMap<>();
+      stats.put("docCount", indexer.docCount());
+      stats.put("classCount", symbolTable.size());
+      stats.put("lastUpdate", indexer.lastUpdate());
+      ctx.json(stats);
+    });
   }
 
   // --- Search: Fuzzy, Suggest, Semantic ---

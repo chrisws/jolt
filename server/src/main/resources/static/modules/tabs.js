@@ -4,6 +4,37 @@ export const state = { tabs: [], activeTab: null };
 /* Sentinel ID for the singleton GIT tab */
 export const GIT_TAB_ID = '__git_tab__';
 
+/* ── Session persistence ─────────────────────────────── */
+const SESSION_KEY = 'jolt.tabs';
+
+function saveSession() {
+  try {
+    const toSave = state.tabs.filter(t => !t.isGit && !t.isDiff).map(t => t.path);
+    sessionStorage.setItem(SESSION_KEY, JSON.stringify({ tabs: toSave, active: state.activeTab }));
+  } catch (e) { /* sessionStorage unavailable */ }
+}
+
+export function restoreSession() {
+  try {
+    const raw = sessionStorage.getItem(SESSION_KEY);
+    if (!raw) return false;
+    const data = JSON.parse(raw);
+    if (!data.tabs || data.tabs.length === 0) return false;
+
+    for (const path of data.tabs) {
+      if (!state.tabs.find(t => t.path === path)) {
+        state.tabs.push({ id: path, path, name: path.split('/').pop() });
+      }
+    }
+    // Activate the previously active tab if it exists, else the first one
+    const target = data.active && state.tabs.find(t => t.id === data.active) ? data.active : state.tabs[0].id;
+    state.activeTab = target;
+    renderTabs();
+    import('./file-viewer.js').then(m => m.loadFile(target));
+    return true;
+  } catch (e) { return false; }
+}
+
 /* DOM refs */
 const $tabBar  = document.getElementById('tab-bar');
 const $viewer  = document.getElementById('code-viewer');
@@ -92,6 +123,12 @@ export function activateTab(id) {
     renderGitView(tab.gitView || 'stats');
     return;
   }
+  // Sync file tab to URL hash (pushState avoids triggering hashchange)
+  const newHash = '#/file/' + id;
+  if (location.hash !== newHash) {
+    history.pushState({ file: id }, '', newHash);
+  }
+  saveSession();
   import('./file-viewer.js').then(m => m.loadFile(id));
 }
 
@@ -105,9 +142,18 @@ export function closeTab(id) {
   }
   renderTabs();
   if (state.activeTab) {
+    // Sync hash to new active tab (if it's a file tab)
+    const nextTab = state.tabs.find(t => t.id === state.activeTab);
+    if (nextTab && !nextTab.isGit && !nextTab.isDiff) {
+      const newHash = '#/file/' + state.activeTab;
+      if (location.hash !== newHash) {
+        history.pushState({ file: state.activeTab }, '', newHash);
+      }
+    }
     document.dispatchEvent(new CustomEvent('jolt:tab-activated', { detail: { path: state.activeTab } }));
     import('./file-viewer.js').then(m => m.loadFile(state.activeTab));
   } else { $viewer.innerHTML = emptyState(); $crumb.innerHTML = ''; }
+  saveSession();
 }
 
 export function closeAllTabs() {

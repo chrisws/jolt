@@ -479,11 +479,28 @@ Jolt creates a `.jolt/` directory under `--home` at startup:
 <home>/.jolt/
 ├── index/              # Lucene index segments (auto-managed)
 ├── models/             # Optional: ONNX embedding model files
+├── prefs.json          # User preferences: bookmarks, recent files, search history (versioned schema)
 ├── settings.json       # User settings (theme, etc.) — created on first PUT /api/settings
 ├── feedback.jsonl      # Feedback log — appended on POST /api/feedback
-├── recent.json         # Recently opened files — updated by frontend
-└── search-history.json # Recent search queries — updated by frontend
+└── git-audit.log       # Git write-operation audit trail (append-only)
 ```
+
+### `prefs.json` Schema
+
+The preferences file uses a versioned JSON schema. The current version is **1**.
+
+```json
+{
+  "version": 1,
+  "bookmarks": [ { "path": "src/Foo.java", "line": 42, "label": "important" } ],
+  "recentFiles": [ { "path": "src/Foo.java", "ts": 1700000000000 } ],
+  "searchHistory": [ { "q": "Service", "ts": 1700000001000 } ]
+}
+```
+
+- **Atomic writes**: every save writes to a temporary file in the same directory, then performs an atomic `rename` (`Files.move` with `ATOMIC_MOVE`). This guarantees the file is never in a partially-written state, even if the process crashes mid-write.
+- **Schema migration**: on load, Jolt checks the `version` field and applies any needed migrations (e.g. v0 → v1 adds the version stamp and ensures required arrays exist). Future schema changes will follow the same pattern.
+- **Read-only filesystem**: if the `.jolt/` directory is not writable (e.g. read-only mount), Jolt detects this at startup, logs an error, and operates in **degraded mode** — preferences are served from memory (or defaults) but saves are silently skipped. The server continues to function normally for all read operations.
 
 These files are safe to delete; Jolt will recreate them as needed. The Lucene index can be forced to rebuild with `--reindex`.
 

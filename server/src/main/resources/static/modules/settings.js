@@ -1,4 +1,5 @@
 import { authFetch } from './url-utils.js';
+import { openPanelWithFocus, closePanelWithFocus } from './focus-manager.js';
  const $settingsPanel = document.getElementById('settings-panel');
 const $settingsBtn   = document.getElementById('settings-btn');
 const $settingsClose = document.getElementById('settings-close');
@@ -8,8 +9,8 @@ const $modelSelect   = document.getElementById('set-model-select');
 const $modelLoadBtn  = document.getElementById('model-load-btn');
 const $modelStatus   = document.getElementById('model-status');
 
-export function openSettings() { loadSettings(); loadModels(); $settingsPanel.removeAttribute('inert'); $settingsPanel.classList.add('open'); }
-export function closeSettings() { $settingsPanel.classList.remove('open'); $settingsPanel.setAttribute('inert', ''); }
+export function openSettings() { loadSettings(); loadModels(); openPanelWithFocus($settingsPanel, $settingsBtn); }
+export function closeSettings() { closePanelWithFocus($settingsPanel); }
 
 async function loadSettings() {
   try {

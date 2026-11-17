@@ -5,7 +5,7 @@
   --surface-2:   #353740;
   --border:      #44464b;
   --text:        #d4d4d4;
-  --text-muted:  #6e6e6e;
+  --text-muted:  #8a8a8a;
   --accent:      #4a9eff;
   --accent-dim:  #2d5a8e;
   --accent-hover:#5daaff;
@@ -397,6 +397,12 @@ grid-template-columns: var(--sidebar-width, 260px) 5px 1fr;
 }
 
 .search-panel.open { transform: translateX(0); }
+
+.panel-header h2 {
+  margin: 0;
+  font-size: var(--fs-medium);
+  font-weight: 600;
+}
 
 .search-panel .panel-header {
   display: flex;
@@ -1625,11 +1631,13 @@ body.resizing { cursor: col-resize; user-select: none; }
   --bg:          #ffffff;
   --surface:     #f5f5f5;
   --surface-2:   #ececec;
+  --surface-3:   #e0e0e0;
   --border:      #d4d4d4;
   --text:        #333333;
   --text-muted:  #707070;
   --accent:      #0066cc;
-  --accent-dim:  #99c2ff;
+  --accent-dim:  #336699;
+  --accent-hover:#2277cc;
   --tab-active:  #ffffff;
   --tab-inactive:#f5f5f5;
   --selection:   rgba(0, 102, 204, 0.2);

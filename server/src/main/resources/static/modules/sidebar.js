@@ -85,13 +85,26 @@ export function initSidebar() {
   $sections.forEach(section => {
     const label = section.querySelector('.section-label');
     if (!label) return;
-    label.addEventListener('click', (e) => {
-      if (e.target.closest('button')) return;
+
+    function toggleSection() {
       const wasOpen = !section.classList.contains('collapsed');
       $sections.forEach(s => { s.classList.add('collapsed'); s.querySelector('.section-label')?.classList.add('collapsed'); });
       if (!wasOpen) {
         section.classList.remove('collapsed');
         label.classList.remove('collapsed');
+      }
+      label.setAttribute('aria-expanded', String(!wasOpen));
+    }
+
+    label.addEventListener('click', (e) => {
+      if (e.target.closest('button')) return;
+      toggleSection();
+    });
+
+    label.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        toggleSection();
       }
     });
   });

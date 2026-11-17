@@ -1,4 +1,4 @@
-import { state, showEmptyState } from './tabs.js';
+import { state, showEmptyState, openTab, activateTab } from './tabs.js';
 import { loadFile } from './file-viewer.js';
 import { closeSearch } from './search.js';
 import { closeSettings } from './settings.js';
@@ -117,6 +117,16 @@ function route() {
     document.querySelector('.breadcrumb').style.display = 'none';
 
     renderDashboard();
+  } else if (parts[0] === 'file' && parts.length > 1) {
+    // File deep-link: #/file/path/to/File.java
+    const filePath = decodeURIComponent(parts.slice(1).join('/'));
+    document.querySelector('.sidebar').style.display = '';
+    document.querySelector('.tab-bar').style.display = '';
+    document.querySelector('.breadcrumb').style.display = '';
+
+    const existing = state.tabs.find(t => t.path === filePath && !t.isDiff);
+    if (existing) { activateTab(existing.id); }
+    else { openTab(filePath); }
   } else {
     // Normal mode — show file tree, hide git pages
     document.querySelector('.sidebar').style.display = '';

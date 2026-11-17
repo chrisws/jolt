@@ -28,8 +28,15 @@ import io.javalin.websocket.WsHandlerType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.ArrayDeque;
+import java.util.Deque;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -46,16 +53,38 @@ public class WsHub {
   private static final Logger log = LoggerFactory.getLogger(WsHub.class);
   private static final ObjectMapper MAPPER = new ObjectMapper();
 
+  private static final int HEARTBEAT_INTERVAL_SEC = 30;
+  private static final int STALE_TIMEOUT_SEC = 90; // 3 missed pings → drop
+  private static final int RATE_LIMIT_PER_SEC = 20;
+
   private final AtomicInteger connectionCount = new AtomicInteger(0);
   @SuppressWarnings("rawtypes")
   private final List<Object> sessions = new CopyOnWriteArrayList<>();
 
+  /** Per-session state: last activity timestamp + message timestamps for rate limiting. */
+  private record SessionState(long lastActivity, Deque<Long> msgTimestamps) {}
+
+  private final Map<Object, SessionState> sessionStates = new ConcurrentHashMap<>();
+
   private final LuceneIndexer indexer;
   private final EmbeddingService embedder; // nullable — null if model file missing
+  private ScheduledExecutorService scheduler;
 
   public WsHub(LuceneIndexer indexer, EmbeddingService embedder) {
     this.indexer = indexer;
     this.embedder = embedder;
+    this.scheduler = Executors.newSingleThreadScheduledExecutor(r -> {
+      Thread t = new Thread(r, "ws-heartbeat");
+      t.setDaemon(true);
+      return t;
+    });
+    this.scheduler.scheduleAtFixedRate(this::sendHeartbeats,
+        HEARTBEAT_INTERVAL_SEC, HEARTBEAT_INTERVAL_SEC, TimeUnit.SECONDS);
+  }
+
+  /** Shut down the heartbeat scheduler (call on server stop). */
+  public void shutdown() {
+    scheduler.shutdownNow();
   }
 
   /** Register the WebSocket endpoint on the Javalin app. */
@@ -66,7 +95,10 @@ public class WsHub {
         connectionCount.incrementAndGet();
         try {
           var sessionObj = findSession(ctx);
-          if (sessionObj != null) sessions.add(sessionObj);
+          if (sessionObj != null) {
+            sessions.add(sessionObj);
+            sessionStates.put(sessionObj, new SessionState(System.currentTimeMillis(), new ArrayDeque<>()));
+          }
         } catch (Exception e) {
           log.debug("Could not extract WS session: {}", e.getMessage());
         }
@@ -88,7 +120,10 @@ public class WsHub {
         connectionCount.decrementAndGet();
         try {
           var sessionObj = findSession(ctx);
-          if (sessionObj != null) sessions.remove(sessionObj);
+          if (sessionObj != null) {
+            sessions.remove(sessionObj);
+            sessionStates.remove(sessionObj);
+          }
         } catch (Exception ignored) {}
         log.info("WS client disconnected (total={})", connectionCount.get());
       });
@@ -100,12 +135,96 @@ public class WsHub {
   // ─── Message handling ──────────────────────────────────────────
 
   private void handleClientMessage(Object ctx, String msg) throws Exception {
-    var node = MAPPER.readTree(msg);
+    // Validate JSON shape.
+    com.fasterxml.jackson.databind.JsonNode node;
+    try {
+      node = MAPPER.readTree(msg);
+    } catch (Exception e) {
+      sendToClient(ctx, "{\"type\":\"error\",\"code\":\"invalid_json\",\"message\":\"Malformed JSON\"}");
+      return;
+    }
+
+    if (!node.isObject() || !node.has("type")) {
+      sendToClient(ctx, "{\"type\":\"error\",\"code\":\"missing_type\",\"message\":\"Message must be a JSON object with a 'type' field\"}");
+      return;
+    }
+
+    // Rate limit: max RATE_LIMIT_PER_SEC messages per second per connection.
+    if (!checkRateLimit(ctx)) {
+      sendToClient(ctx, "{\"type\":\"error\",\"code\":\"rate_limited\",\"message\":\"Too many messages — limit is " + RATE_LIMIT_PER_SEC + "/s\"}");
+      return;
+    }
+
     String type = node.path("type").asText("");
 
     switch (type) {
       case "search" -> handleSearch(ctx, node);
+      case "pong" -> touchSession(ctx); // client responded to heartbeat
       default -> log.debug("Unknown WS message type: {}", type);
+    }
+  }
+
+  /** Returns true if the message is within the rate limit; false if exceeded. */
+  private boolean checkRateLimit(Object ctx) {
+    SessionState state = sessionStates.get(ctx);
+    if (state == null) return true; // no state → allow
+
+    long now = System.currentTimeMillis();
+    Deque<Long> timestamps = state.msgTimestamps();
+
+    // Remove timestamps older than 1 second.
+    while (!timestamps.isEmpty() && now - timestamps.peekFirst() > 1000) {
+      timestamps.pollFirst();
+    }
+
+    if (timestamps.size() >= RATE_LIMIT_PER_SEC) {
+      return false;
+    }
+
+    timestamps.addLast(now);
+    return true;
+  }
+
+  /** Update the last-activity timestamp for a session. */
+  private void touchSession(Object ctx) {
+    SessionState state = sessionStates.get(ctx);
+    if (state != null) {
+      sessionStates.put(ctx, new SessionState(System.currentTimeMillis(), state.msgTimestamps()));
+    }
+  }
+
+  /** Send heartbeat pings to all clients and drop stale connections. */
+  private void sendHeartbeats() {
+    long now = System.currentTimeMillis();
+    var stale = new java.util.ArrayList<Object>();
+
+    for (var obj : sessions) {
+      SessionState state = sessionStates.get(obj);
+      if (state == null) continue;
+
+      // Drop connections that haven't been active for STALE_TIMEOUT_SEC.
+      if (now - state.lastActivity() > STALE_TIMEOUT_SEC * 1000L) {
+        log.info("Dropping stale WS connection (inactive {}s)", (now - state.lastActivity()) / 1000);
+        stale.add(obj);
+        continue;
+      }
+
+      try {
+        java.lang.reflect.Method m = obj.getClass().getMethod("send", String.class);
+        m.invoke(obj, "{\"type\":\"ping\"}");
+      } catch (Exception e) {
+        stale.add(obj);
+      }
+    }
+
+    for (var obj : stale) {
+      sessions.remove(obj);
+      sessionStates.remove(obj);
+      connectionCount.decrementAndGet();
+    }
+
+    if (!stale.isEmpty()) {
+      log.info("Dropped {} stale WS connection(s)", stale.size());
     }
   }
 

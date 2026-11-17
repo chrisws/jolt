@@ -2,6 +2,7 @@ import { initSearch } from './modules/search.js';
 import { initSettings } from './modules/settings.js';
 import { initKeybindings } from './modules/keybindings.js';
 import { initRouter } from './modules/router.js';
+import { restoreSession } from './modules/tabs.js';
 import { loadFileTree } from './modules/file-tree.js';
 import { initInspector } from './modules/inspector.js';
 import { initUserData } from './modules/user-data.js';
@@ -87,6 +88,11 @@ initContextMenu();
 initNavHistory();
 initDiffPanel();
 
+// Restore tabs from previous session (only if router didn't open one via URL hash)
+import('./modules/tabs.js').then(m => {
+  if (!m.state.activeTab) { restoreSession(); }
+});
+
 // ── Index progress indicator ──────────────────────────────
 let _indexProgEl = null;
 
@@ -125,26 +131,57 @@ function showIndexProgress(current, total, percent) {
   }
 }
 
-// ── Git status WebSocket ──────────────────────────────────
-(function initGitWs() {
-  const ws = new WebSocket('ws://' + location.host + '/ws');
-  ws.onmessage = (e) => {
-    try {
-      const data = JSON.parse(e.data);
-      if (data.type === 'git_status_changed') {
-        // Refresh dirty file markers in the tree
-        import('./modules/file-tree.js').then(m => m.markDirtyFiles());
-        // Notify git pages to refresh if visible
-        document.dispatchEvent(new CustomEvent('jolt:git-status-changed', { detail: data }));
-      } else if (data.type === 'file_changed') {
-        // File changed on disk — refresh tree markers too
-        import('./modules/file-tree.js').then(m => m.markDirtyFiles());
-      } else if (data.type === 'index_progress') {
-        showIndexProgress(data.current, data.total, data.percent);
-      }
-    } catch (err) { console.debug('[WS] parse error:', err.message); }
-  };
-  ws.onclose = () => { console.debug('[WS] connection closed, will not auto-reconnect'); };
+// ── WebSocket with auto-reconnect ──────────────────────────
+(function initWs() {
+  let ws = null;
+  let reconnectDelay = 1000; // start at 1s, max 30s
+
+  // Debounce tree refreshes on rapid git operations (500 ms)
+  let _treeTimer = null;
+  function debouncedTreeRefresh() {
+    if (_treeTimer) clearTimeout(_treeTimer);
+    _treeTimer = setTimeout(() => {
+      import('./modules/file-tree.js').then(m => m.markDirtyFiles());
+    }, 500);
+  }
+
+  function connect() {
+    ws = new WebSocket('ws://' + location.host + '/ws');
+
+    ws.onopen = () => { reconnectDelay = 1000; }; // reset backoff on successful connect
+
+    ws.onmessage = (e) => {
+      try {
+        const data = JSON.parse(e.data);
+        if (data.type === 'git_status_changed') {
+          debouncedTreeRefresh();
+          document.dispatchEvent(new CustomEvent('jolt:git-status-changed', { detail: data }));
+        } else if (data.type === 'file_changed') {
+          debouncedTreeRefresh();
+        } else if (data.type === 'index_progress') {
+          showIndexProgress(data.current, data.total, data.percent);
+        } else if (data.type === 'ping') {
+          // Respond to server heartbeat.
+          ws.send(JSON.stringify({ type: 'pong' }));
+        } else if (data.type === 'error') {
+          console.warn('[WS] server error:', data.code, data.message);
+        }
+      } catch (err) { console.debug('[WS] parse error:', err.message); }
+    };
+
+    ws.onclose = () => {
+      console.debug('[WS] connection closed, reconnecting in', reconnectDelay, 'ms');
+      setTimeout(connect, reconnectDelay);
+      reconnectDelay = Math.min(reconnectDelay * 2, 30000); // exponential backoff, cap 30s
+    };
+
+    ws.onerror = () => { /* onclose will fire after onerror */ };
+  }
+
+  connect();
+
+  // Expose for modules that need to send WS messages (e.g. real-time search).
+  window._joltWsSend = (obj) => { if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(obj)); };
 })();
 
 // Async init — run in parallel with theme loading

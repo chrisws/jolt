@@ -53,6 +53,11 @@ public class GitService {
     this.homeDir = homeDir.toAbsolutePath().normalize();
   }
 
+  /** Returns true if a .git directory exists in the project root. */
+  public boolean isAvailable() {
+    return java.nio.file.Files.isDirectory(homeDir.resolve(".git"));
+  }
+
   /** Walk all commits from a given ref (newest first). */
   private List<RevCommit> walkAllCommits(Repository repo, String refName) throws Exception {
     List<RevCommit> commits = new ArrayList<>();

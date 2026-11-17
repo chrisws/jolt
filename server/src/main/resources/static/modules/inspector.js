@@ -1,3 +1,5 @@
+import { openPanelWithFocus, closePanelWithFocus } from './focus-manager.js';
+
 const $panel  = document.getElementById('inspector-panel');
 const $header = document.getElementById('inspector-title');
 const $body   = document.getElementById('inspector-body');
@@ -7,10 +9,10 @@ function esc(s) { const d = document.createElement('div'); d.textContent = s; re
 export function openInspector(title) {
   $header.textContent = title;
   $body.innerHTML = '<div class="loading">Loading…</div>';
-  $panel.classList.add('open');
+  openPanelWithFocus($panel, null);
 }
 
-export function closeInspector() { $panel.classList.remove('open'); }
+export function closeInspector() { closePanelWithFocus($panel); }
 
 /* ── Go-to-Definition ─────────────────────────── */
 

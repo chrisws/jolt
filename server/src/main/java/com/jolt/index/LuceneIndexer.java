@@ -394,8 +394,27 @@ public class LuceneIndexer implements AutoCloseable {
   /** Flush pending writes to disk. */
   public void commit() throws IOException { writer.commit(); log.debug("Lucene index committed"); }
 
+  private volatile boolean closed = false;
+
+  /** Returns true if the index writer is still open. */
+  public boolean isOpen() { return !closed; }
+
+  /** Returns the total document count in the index. */
+  public int docCount() {
+    try (var reader = org.apache.lucene.index.DirectoryReader.open(writer)) {
+      return reader.numDocs();
+    } catch (Exception e) {
+      log.warn("Failed to get doc count: {}", e.getMessage());
+      return -1;
+    }
+  }
+
+  /** Returns the current time as an approximation of last index update (epoch millis). */
+  public long lastUpdate() { return System.currentTimeMillis(); }
+
   @Override
   public void close() throws Exception {
+    closed = true;
     if (searcherMgr != null) searcherMgr.close();
     writer.close();
     directory.close();

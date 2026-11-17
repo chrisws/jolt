@@ -70,6 +70,19 @@ public final class ServerBootstrap {
       + "style-src 'self' 'unsafe-inline'; connect-src 'self' ws://* wss://*; "
       + "img-src 'self' data:; font-src 'self'"));
 
+    // ─── Response time tracking ──────────────────────────────
+    app.unsafe.routes.before(ctx -> ctx.attribute("jolt.start", System.nanoTime()));
+    app.unsafe.routes.after(ctx -> {
+      Long start = ctx.attribute("jolt.start");
+      if (start != null) {
+        long ms = (System.nanoTime() - start) / 1_000_000;
+        ctx.header("X-Response-Time", ms + "ms");
+        if (ms > 500) {
+          log.warn("Slow request: {} {} — {}ms", ctx.method(), ctx.path(), ms);
+        }
+      }
+    });
+
     // ─── Auth ────────────────────────────────────────────────
     AuthService authService = AuthConfig.register(app, readonly, host, port);
 
