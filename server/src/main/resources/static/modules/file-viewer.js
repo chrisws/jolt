@@ -68,8 +68,9 @@ function showMdToggle() {
       _mdMode = _mdMode === 'rendered' ? 'raw' : 'rendered';
       btn.textContent = _mdMode === 'rendered' ? 'Raw' : 'Rendered';
       // Re-render current file
-      const activeTab = document.querySelector('.tab.active')?.dataset.path;
-      if (activeTab) loadFile(activeTab);
+      import('./tabs.js').then(m => {
+        if (m.state.activeTab) loadFile(m.state.activeTab);
+      });
     });
   }
   btn.style.display = '';
@@ -154,6 +155,14 @@ export async function toggleBlame(filePath) {
   if ($btn) $btn.classList.toggle('active', blameActive);
 
   if (!blameActive) { removeBlameGutter(); return; }
+
+  // If markdown is in rendered mode, switch to raw so .code-line elements exist
+  if (_mdMode === 'rendered') {
+    _mdMode = 'raw';
+    const $mdBtn = document.getElementById('md-toggle-btn');
+    if ($mdBtn) $mdBtn.textContent = 'Rendered';
+    await loadFile(filePath);
+  }
 
   try {
     const res = await fetch('/api/blame?path=' + encodeURIComponent(filePath));
