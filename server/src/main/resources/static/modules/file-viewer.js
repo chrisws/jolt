@@ -220,6 +220,20 @@ export async function toggleLint(filePath) {
 
   if ($btn) $btn.classList.add('active');
 
+  // For pom.xml, show the panel immediately with a scanning message
+  const isPomXml = filePath.toLowerCase().endsWith('pom.xml');
+  if (isPomXml && $panel) {
+    const $list = document.getElementById('problems-list');
+    const $count = document.getElementById('problems-count');
+    if ($list) {
+      $list.innerHTML = '<div class="problems-scanning">' +
+        '<span class="loading-spinner"></span> Scanning for CVEs…</div>';
+    }
+    if ($count) $count.textContent = '';
+    $panel.style.display = '';
+    if ($main) $main.classList.add('lint-open');
+  }
+
   try {
     const res = await authFetch('/api/file/lint?path=' + encodeURIComponent(filePath));
     if (!res.ok) throw new Error('HTTP ' + res.status);
@@ -235,6 +249,15 @@ export async function toggleLint(filePath) {
     console.error('Lint failed:', err);
     lintActive = false;
     if ($btn) $btn.classList.remove('active');
+    if (isPomXml && $panel) {
+      const $list = document.getElementById('problems-list');
+      if ($list) {
+        $list.innerHTML = '<div class="problems-empty">CVE scan failed: ' + esc(err.message) + '</div>';
+      }
+    } else {
+      if ($panel) $panel.style.display = 'none';
+      if ($main) $main.classList.remove('lint-open');
+    }
   }
 }
 

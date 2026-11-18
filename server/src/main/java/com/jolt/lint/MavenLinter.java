@@ -14,10 +14,12 @@ import java.net.http.HttpResponse;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -31,10 +33,12 @@ public class MavenLinter {
   private static final String OSV_API_URL = "https://api.osv.dev/v1/query";
   private static final Duration HTTP_TIMEOUT = Duration.ofSeconds(15);
 
+  private static final Duration CACHE_TTL = Duration.ofHours(1);
+
   private final OsvClient osvClient;
 
   public MavenLinter() {
-    this(new HttpOsvClient());
+    this(new CachingOsvClient(new HttpOsvClient()));
   }
 
   /** Package-private constructor for test injection. */
@@ -225,6 +229,49 @@ public class MavenLinter {
         log.warn("OSV query interrupted for {} v{}", pkg, version);
         return List.of();
       }
+    }
+  }
+
+  /**
+   * Decorator that caches OSV query results for a fixed TTL to avoid
+   * repeated network calls when linting the same pom.xml multiple times.
+   */
+  static class CachingOsvClient implements OsvClient {
+
+    private record CacheEntry(List<OsvVuln> vulns, Instant expiresAt) {}
+
+    private final OsvClient delegate;
+    private final Duration ttl;
+    private final Map<String, CacheEntry> cache = new ConcurrentHashMap<>();
+
+    CachingOsvClient(OsvClient delegate) {
+      this(delegate, CACHE_TTL);
+    }
+
+    CachingOsvClient(OsvClient delegate, Duration ttl) {
+      this.delegate = delegate;
+      this.ttl = ttl;
+    }
+
+    @Override
+    public List<OsvVuln> query(String groupId, String artifactId, String version) {
+      String key = groupId + ":" + artifactId + ":" + version;
+
+      CacheEntry entry = cache.get(key);
+      if (entry != null && entry.expiresAt().isAfter(Instant.now())) {
+        log.debug("CVE check: cache hit for {} v{}", groupId + ":" + artifactId, version);
+        return entry.vulns();
+      }
+
+      List<OsvVuln> result = delegate.query(groupId, artifactId, version);
+
+      // Evict stale entries opportunistically
+      if (cache.size() > 500) {
+        cache.entrySet().removeIf(e -> e.getValue().expiresAt().isBefore(Instant.now()));
+      }
+
+      cache.put(key, new CacheEntry(result, Instant.now().plus(ttl)));
+      return result;
     }
   }
 }
