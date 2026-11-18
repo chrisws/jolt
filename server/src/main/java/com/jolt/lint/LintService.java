@@ -15,6 +15,7 @@ public class LintService {
 
   private final JavaLinter javaLinter = new JavaLinter();
   private final CppLinter cppLinter;
+  private final MavenLinter mavenLinter = new MavenLinter();
 
   public LintService(CompileDb compileDb) {
     this.cppLinter = new CppLinter(compileDb);
@@ -31,6 +32,8 @@ public class LintService {
         || name.endsWith(".cxx") || name.endsWith(".c")
         || name.endsWith(".h") || name.endsWith(".hpp") || name.endsWith(".hxx")) {
       problems = cppLinter.lint(filePath);
+    } else if ("pom.xml".equals(name)) {
+      problems = mavenLinter.lint(filePath);
     } else {
       log.debug("No linter for file type: {}", name);
       return List.of();

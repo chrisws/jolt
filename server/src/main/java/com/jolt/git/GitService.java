@@ -224,8 +224,14 @@ public class GitService {
   /** Checkout a branch by name. Returns the new current branch name, or throws. */
   public String checkoutBranch(String name) throws Exception {
     try (Git git = Git.open(homeDir.toFile())) {
+      String prev = git.getRepository().getBranch();
       git.checkout().setName(name).call();
-      return git.getRepository().getBranch();
+      String now = git.getRepository().getBranch();
+      log.info("[GIT] Checkout: {} → {}", prev, now);
+      return now;
+    } catch (Exception e) {
+      log.error("[GIT] Checkout to '{}' failed: {}", name, e.getMessage());
+      throw e;
     }
   }
 
@@ -979,7 +985,7 @@ public class GitService {
         return false;
       }
 
-      log.debug("Unstaged file: {}", path);
+      log.info("[GIT] Unstaged: {}", path);
       return true;
     } catch (Exception e) {
       log.error("Failed to unstage file {}: {}", path, e.getMessage());

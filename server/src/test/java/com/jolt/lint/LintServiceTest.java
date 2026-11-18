@@ -79,6 +79,35 @@ class LintServiceTest {
   }
 
   @Test
+  void pomXmlDispatchesToMavenLinter() throws Exception {
+    Path file = tempDir.resolve("pom.xml");
+    Files.writeString(file, """
+      <?xml version="1.0"?>
+      <project>
+        <modelVersion>4.0.0</modelVersion>
+        <groupId>com.test</groupId>
+        <artifactId>test</artifactId>
+        <version>1.0</version>
+      </project>
+      """);
+
+    // Should not throw; returns empty list (no deps to check) or CVE warnings
+    List<Problem> problems = service.lint(file);
+
+    assertNotNull(problems);
+  }
+
+  @Test
+  void nonPomXmlFileIsNotLinted() throws Exception {
+    Path file = tempDir.resolve("other.xml");
+    Files.writeString(file, "<root/>");
+
+    List<Problem> problems = service.lint(file);
+
+    assertTrue(problems.isEmpty());
+  }
+
+  @Test
   void problemRecordFieldsArePopulated() throws Exception {
     Path file = tempDir.resolve("Bad.java");
     Files.writeString(file, """

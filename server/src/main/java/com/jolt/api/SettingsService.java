@@ -26,7 +26,9 @@ import org.slf4j.LoggerFactory;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -72,11 +74,19 @@ public class SettingsService {
   public Map<String, Object> updateSettings(Map<String, Object> updates) {
     Map<String, Object> current = getSettings();
 
+    List<String> applied = new ArrayList<>();
     for (Map.Entry<String, Object> entry : updates.entrySet()) {
       // Only allow known keys to prevent injection of arbitrary data
       if (current.containsKey(entry.getKey()) || isKnownKey(entry.getKey())) {
         current.put(entry.getKey(), entry.getValue());
+        applied.add(entry.getKey() + "=" + entry.getValue());
+      } else {
+        log.debug("Ignoring unknown setting key: {}", entry.getKey());
       }
+    }
+
+    if (!applied.isEmpty()) {
+      log.info("Settings updated: {}", String.join(", ", applied));
     }
 
     writeSettings(current);
@@ -151,6 +161,7 @@ public class SettingsService {
       }
 
       mapper.writerWithDefaultPrettyPrinter().writeValue(settingsFile.toFile(), node);
+      log.info("Settings written to {} ({} keys)", settingsFile.getFileName(), settings.size());
 
     } catch (Exception e) {
       log.error("Failed to write settings: {}", e.getMessage());

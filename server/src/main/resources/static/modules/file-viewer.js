@@ -199,7 +199,8 @@ const LINTABLE_EXTS = ['.java', '.cpp', '.cc', '.cxx', '.c', '.h', '.hpp', '.hxx
 function updateLintButtonVisibility(path) {
   const $btn = document.getElementById('lint-btn');
   if (!$btn) return;
-  const isLintable = LINTABLE_EXTS.some(ext => path.toLowerCase().endsWith(ext));
+  const lower = path.toLowerCase();
+  const isLintable = LINTABLE_EXTS.some(ext => lower.endsWith(ext)) || lower.endsWith('pom.xml');
   $btn.style.display = isLintable ? '' : 'none';
 }
 
